@@ -1,0 +1,6 @@
+{
+  "name": "WorldBox 2D Sandbox",
+  "description": "A 2D pixel-art sandbox simulation in the style of WorldBox with terrain generation, biomes, resources, autonomous humans, settlements, kingdoms, buildings, and diplomacy.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
