@@ -16,18 +16,29 @@ export const SIMULATION_CONFIG = {
   maxAgeMax: 92,
 
   // Reproduction
-  reproductionCooldownTicks: 250, // ~10 seconds between births per person
+  reproductionCooldownTicks: 350, // ~14 seconds cooldown between births
   reproductionMinAge: 18,
   reproductionMaxAge: 55,
-  reproductionMaxProximity: 4.5, // tiles distance to partner
+  reproductionMaxProximity: 6.0, // tiles distance to find partner
   basePartnerChance: 0.15, // chance during idle to seek partner
-  baseConceptionChance: 0.35,
+  baseConceptionChance: 0.5,
+  birthDurationTicks: 150, // Longer child birth / gestation process (~6 seconds at 25 TPS)
+  samePixelProximityThreshold: 0.25, // Required distance to be on the exact same pixel
 
   // Building costs & specs
   houseCost: { wood: 15, stone: 5 },
   storageCost: { wood: 20, stone: 10 },
   townHallCost: { wood: 35, stone: 20 },
+  farmCost: { wood: 10, stone: 0 },
+  penCost: { wood: 20, stone: 8 },
   houseCapacity: 4,
+  penCapacity: 8,
+
+  // Hunter & Farmer combat & tool specs
+  hunterHealth: 55,
+  hunterDamage: 9,
+  hunterAttackCooldownTicks: 26,
+  hunterRange: 3.2, // Bow/spear hunting range
 
   // Settlement founding requirements
   settlementMinPop: 4,

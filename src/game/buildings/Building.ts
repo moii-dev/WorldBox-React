@@ -24,6 +24,10 @@ export class Building implements BuildingEntity {
   public captureProgress: number = 0;
   public capturingKingdomId: string | null = null;
 
+  public health: number = 100;
+  public maxHealth: number = 100;
+  public onFireTimer: number = 0;
+
   private static idCounter: number = 1;
 
   constructor(type: BuildingType, x: number, y: number, settlementId: string | null = null, kingdomId: string | null = null) {
@@ -40,12 +44,66 @@ export class Building implements BuildingEntity {
       this.woodNeeded = SIMULATION_CONFIG.houseCost.wood;
       this.stoneNeeded = SIMULATION_CONFIG.houseCost.stone;
       this.maxOccupants = SIMULATION_CONFIG.houseCapacity;
+      this.maxHealth = 100;
     } else if (type === 'STORAGE') {
       this.width = 2;
       this.height = 2;
       this.woodNeeded = SIMULATION_CONFIG.storageCost.wood;
       this.stoneNeeded = SIMULATION_CONFIG.storageCost.stone;
       this.maxOccupants = 0;
+      this.maxHealth = 150;
+    } else if (type === 'FARM') {
+      this.width = 2;
+      this.height = 2;
+      this.woodNeeded = SIMULATION_CONFIG.farmCost.wood;
+      this.stoneNeeded = SIMULATION_CONFIG.farmCost.stone;
+      this.maxOccupants = 0;
+      this.cropStage = 'PLANTING';
+      this.cropProgress = 0;
+      this.maxHealth = 80;
+    } else if (type === 'ANIMAL_PEN') {
+      this.width = 3;
+      this.height = 3;
+      this.woodNeeded = SIMULATION_CONFIG.penCost.wood;
+      this.stoneNeeded = SIMULATION_CONFIG.penCost.stone;
+      this.maxOccupants = 0;
+      this.livestockIds = [];
+      this.maxHealth = 120;
+    } else if (type === 'WATCHTOWER') {
+      this.width = 2;
+      this.height = 2;
+      this.woodNeeded = 20;
+      this.stoneNeeded = 15;
+      this.maxOccupants = 2;
+      this.maxHealth = 250;
+    } else if (type === 'DEFENSIVE_WALL') {
+      this.width = 1;
+      this.height = 1;
+      this.woodNeeded = 5;
+      this.stoneNeeded = 15;
+      this.maxOccupants = 0;
+      this.maxHealth = 350;
+    } else if (type === 'BLACKSMITH') {
+      this.width = 2;
+      this.height = 2;
+      this.woodNeeded = 25;
+      this.stoneNeeded = 25;
+      this.maxOccupants = 2;
+      this.maxHealth = 200;
+    } else if (type === 'TEMPLE') {
+      this.width = 3;
+      this.height = 3;
+      this.woodNeeded = 35;
+      this.stoneNeeded = 35;
+      this.maxOccupants = 4;
+      this.maxHealth = 350;
+    } else if (type === 'DOCK') {
+      this.width = 2;
+      this.height = 2;
+      this.woodNeeded = 30;
+      this.stoneNeeded = 10;
+      this.maxOccupants = 2;
+      this.maxHealth = 200;
     } else {
       // TOWN_HALL
       this.width = 3;
@@ -53,7 +111,42 @@ export class Building implements BuildingEntity {
       this.woodNeeded = SIMULATION_CONFIG.townHallCost.wood;
       this.stoneNeeded = SIMULATION_CONFIG.townHallCost.stone;
       this.maxOccupants = 0;
+      this.maxHealth = 300;
     }
+    this.health = this.maxHealth;
+  }
+
+  // Farm-specific state
+  public cropStage?: 'PLANTING' | 'GROWING' | 'READY' | 'HARVESTING' | 'EMPTY';
+  public cropProgress?: number;
+
+  // Animal Pen-specific state
+  public livestockIds?: string[];
+  public maxLivestock: number = 8;
+
+  public get livestockCapacity(): number {
+    return this.maxLivestock;
+  }
+
+  public updateFarm(growthSpeed: number = 0.004): void {
+    if (this.type !== 'FARM' || !this.isCompleted) return;
+
+    if (this.cropStage === 'PLANTING') {
+      this.cropStage = 'GROWING';
+      this.cropProgress = 0;
+    } else if (this.cropStage === 'GROWING') {
+      this.cropProgress = Math.min(1.0, (this.cropProgress || 0) + growthSpeed);
+      if (this.cropProgress >= 1.0) {
+        this.cropStage = 'READY';
+      }
+    }
+  }
+
+  public harvestCrops(): number {
+    if (this.type !== 'FARM' || this.cropStage !== 'READY') return 0;
+    this.cropStage = 'PLANTING';
+    this.cropProgress = 0;
+    return 6; // food units produced
   }
 
   public deliverWood(amount: number): number {

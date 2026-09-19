@@ -12,7 +12,18 @@ export class Kingdom implements KingdomEntity {
   public relations: Record<string, number> = {};
   public atWarWith: string[] = [];
 
+  // Ruler, Era, Culture
+  public rulerName: string = 'Правитель';
+  public rulerTrait: 'PEACEFUL' | 'CRUEL' | 'EXPANSIONIST' | 'BUILDER' | 'DEVOUT' | 'MERCHANT' = 'PEACEFUL';
+  public era: 'PRIMITIVE' | 'BRONZE' | 'IRON' | 'IMPERIAL' = 'PRIMITIVE';
+  public faith: number = 0;
+
   private static idCounter: number = 1;
+  private static rulerFirstNames = ['Ярослав', 'Святополк', 'Владимир', 'Олег', 'Игорь', 'Всеволод', 'Мстислав', 'Рюрик', 'Добрыня', 'Борис', 'Глеб', 'Даниил'];
+  private static rulerTitles = ['Мудрый', 'Грозный', 'Строитель', 'Храбрый', 'Великий', 'Благочестивый', 'Мореплаватель', 'Справедливый'];
+  private static traits: ('PEACEFUL' | 'CRUEL' | 'EXPANSIONIST' | 'BUILDER' | 'DEVOUT' | 'MERCHANT')[] = [
+    'PEACEFUL', 'CRUEL', 'EXPANSIONIST', 'BUILDER', 'DEVOUT', 'MERCHANT'
+  ];
 
   constructor(name: string, color: string, capitalSettlementId: string) {
     this.id = `kng_${Kingdom.idCounter++}`;
@@ -20,6 +31,12 @@ export class Kingdom implements KingdomEntity {
     this.color = color;
     this.capitalSettlementId = capitalSettlementId;
     this.settlementIds = [capitalSettlementId];
+
+    // Generate random ruler and trait
+    const fn = Kingdom.rulerFirstNames[Math.floor(Math.random() * Kingdom.rulerFirstNames.length)];
+    const title = Kingdom.rulerTitles[Math.floor(Math.random() * Kingdom.rulerTitles.length)];
+    this.rulerName = `${fn} ${title}`;
+    this.rulerTrait = Kingdom.traits[Math.floor(Math.random() * Kingdom.traits.length)];
   }
 
   public addSettlement(settlementId: string): void {

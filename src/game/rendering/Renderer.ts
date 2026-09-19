@@ -6,6 +6,11 @@ import { BuildingManager } from '../buildings/BuildingManager';
 import { SettlementManager } from '../settlements/SettlementManager';
 import { KingdomManager } from '../kingdoms/KingdomManager';
 import { TerritoryManager } from '../world/TerritoryManager';
+import { AnimalManager } from '../entities/AnimalManager';
+import { GodPowersManager } from '../powers/GodPowersManager';
+import { RoadSystem } from '../roads/RoadSystem';
+import { ShipManager } from '../seafaring/ShipManager';
+import { TradeManager } from '../trade/TradeManager';
 import { TileType, ToolType } from '../types';
 import { BIOME_CONFIGS, SHORE_COLORS, TILE_COLORS, getWaterColor } from '../world/TilePalette';
 import { PixelSprites } from './PixelSprites';
@@ -18,19 +23,27 @@ export class Renderer {
   private camera: Camera;
   private resourceManager: ResourceManager;
   private entityManager: EntityManager;
+  public animalManager?: AnimalManager;
   public buildingManager?: BuildingManager;
   public settlementManager?: SettlementManager;
   public kingdomManager?: KingdomManager;
   public territoryManager?: TerritoryManager;
+  public godPowersManager?: GodPowersManager;
+  public roadSystem?: RoadSystem;
+  public shipManager?: ShipManager;
+  public tradeManager?: TradeManager;
 
   // Animation timer for water waves, tide, and foam
   private animTime: number = 0;
 
   // Brush / Hover state
   public cursorWorldPos: { x: number; y: number } | null = null;
-  public activeTool: ToolType = 'land';
+  public activeTool: string = 'grassland';
   public brushRadius: number = 5;
+  public brushHardness: number = 1.0;
   public showPoliticalMap: boolean = false;
+  public selectionMarquee: { startX: number; startY: number; currentX: number; currentY: number } | null = null;
+  public selectedEntityIds: Set<string> = new Set();
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -41,7 +54,9 @@ export class Renderer {
     buildingManager?: BuildingManager,
     settlementManager?: SettlementManager,
     kingdomManager?: KingdomManager,
-    territoryManager?: TerritoryManager
+    territoryManager?: TerritoryManager,
+    animalManager?: AnimalManager,
+    godPowersManager?: GodPowersManager
   ) {
     this.canvas = canvas;
     const context = canvas.getContext('2d', { alpha: false });
@@ -58,6 +73,8 @@ export class Renderer {
     this.settlementManager = settlementManager;
     this.kingdomManager = kingdomManager;
     this.territoryManager = territoryManager;
+    this.animalManager = animalManager;
+    this.godPowersManager = godPowersManager;
   }
 
   public render(deltaSeconds: number): void {
@@ -81,6 +98,11 @@ export class Renderer {
     // 1. Render Terrain Tiles & Sophisticated Biome Transitions
     this.renderTiles(bounds, width, height, zoom);
 
+    // 1.5 Render Roads & Cobblestone Highways
+    if (this.roadSystem) {
+      this.renderRoads(bounds, width, height, zoom);
+    }
+
     // 2. Render Shoreline Foam & Coastal Wave Animations
     this.renderCoastlineTide(bounds, width, height, zoom);
 
@@ -100,12 +122,22 @@ export class Renderer {
     // 6. Render Resources, Buildings & Humans sorted by Y coordinate for correct depth layering
     this.renderObjects(bounds, width, height, zoom);
 
+    // 6.5 Render Burning Fires & Divine VFX
+    if (this.godPowersManager) {
+      this.renderFires(bounds, width, height, zoom);
+      this.godPowersManager.vfxSystem.render(this.ctx, this.camera, width, height, zoom);
+    }
+
     // 7. Render Floating Settlement Banners
     if (this.settlementManager && this.kingdomManager) {
       this.renderSettlementBanners(bounds, width, height, zoom);
     }
 
-    // 8. Render Brush / Tool cursor indicator
+    // 8. Render Selection Highlights & Marquee Box
+    this.renderSelectionHighlights(width, height, zoom);
+    this.renderSelectionMarquee();
+
+    // 9. Render Brush / Tool cursor indicator
     this.renderCursor(width, height, zoom);
   }
 
@@ -543,6 +575,8 @@ export class Renderer {
         draw: () => {
           if (res.type === 'TREE') {
             PixelSprites.drawTree(ctx, res, screenX, screenY, zoom);
+          } else if (res.type === 'BERRY_BUSH') {
+            PixelSprites.drawBerryBush(ctx, res, screenX, screenY, zoom);
           } else {
             PixelSprites.drawStone(ctx, res, screenX, screenY, zoom);
           }
@@ -550,7 +584,27 @@ export class Renderer {
       });
     }
 
-    // 2. Buildings
+    // 2. Animal Carcasses
+    if (this.animalManager) {
+      for (const carcass of this.animalManager.carcasses.values()) {
+        if (
+          carcass.x >= bounds.minX - 1 &&
+          carcass.x <= bounds.maxX + 1 &&
+          carcass.y >= bounds.minY - 1 &&
+          carcass.y <= bounds.maxY + 1
+        ) {
+          const { screenX, screenY } = this.camera.worldToScreen(carcass.x, carcass.y, canvasW, canvasH);
+          drawables.push({
+            yOrder: carcass.y + 0.1,
+            draw: () => {
+              PixelSprites.drawCarcass(ctx, carcass, screenX, screenY, zoom);
+            },
+          });
+        }
+      }
+    }
+
+    // 3. Buildings
     const selectedBldId = this.buildingManager?.selectedBuildingId;
     for (const bld of visibleBuildings) {
       const { screenX, screenY } = this.camera.worldToScreen(bld.x, bld.y, canvasW, canvasH);
@@ -566,7 +620,30 @@ export class Renderer {
       });
     }
 
-    // 3. Humans
+    // 4. Animals
+    if (this.animalManager) {
+      const selectedAnimalId = this.animalManager.selectedAnimalId;
+      for (const animal of this.animalManager.animals.values()) {
+        if (animal.health <= 0) continue;
+        if (
+          animal.x >= bounds.minX - 1 &&
+          animal.x <= bounds.maxX + 1 &&
+          animal.y >= bounds.minY - 1 &&
+          animal.y <= bounds.maxY + 1
+        ) {
+          const { screenX, screenY } = this.camera.worldToScreen(animal.x, animal.y, canvasW, canvasH);
+          const isSelected = animal.id === selectedAnimalId;
+          drawables.push({
+            yOrder: animal.y,
+            draw: () => {
+              PixelSprites.drawAnimal(ctx, animal, screenX, screenY, zoom, isSelected);
+            },
+          });
+        }
+      }
+    }
+
+    // 5. Humans
     const selectedId = this.entityManager.selectedHumanId;
     for (const human of visibleHumans) {
       const { screenX, screenY } = this.camera.worldToScreen(human.x, human.y, canvasW, canvasH);
@@ -582,11 +659,78 @@ export class Renderer {
       });
     }
 
+    // 6. Ships & Naval Vessels
+    if (this.shipManager) {
+      for (const ship of this.shipManager.ships.values()) {
+        if (ship.health <= 0) continue;
+        if (
+          ship.x >= bounds.minX - 2 &&
+          ship.x <= bounds.maxX + 2 &&
+          ship.y >= bounds.minY - 2 &&
+          ship.y <= bounds.maxY + 2
+        ) {
+          const { screenX, screenY } = this.camera.worldToScreen(ship.x, ship.y, canvasW, canvasH);
+          const kingdom = ship.kingdomId && this.kingdomManager ? this.kingdomManager.getKingdom(ship.kingdomId) : null;
+          const kingdomColor = kingdom ? kingdom.color : undefined;
+
+          drawables.push({
+            yOrder: ship.y + 0.2,
+            draw: () => {
+              PixelSprites.drawShip(ctx, ship, screenX, screenY, zoom, kingdomColor);
+            },
+          });
+        }
+      }
+    }
+
+    // 7. Trade Caravans
+    if (this.tradeManager) {
+      for (const caravan of this.tradeManager.caravans.values()) {
+        if (
+          caravan.x >= bounds.minX - 1 &&
+          caravan.x <= bounds.maxX + 1 &&
+          caravan.y >= bounds.minY - 1 &&
+          caravan.y <= bounds.maxY + 1
+        ) {
+          const { screenX, screenY } = this.camera.worldToScreen(caravan.x, caravan.y, canvasW, canvasH);
+          drawables.push({
+            yOrder: caravan.y,
+            draw: () => {
+              PixelSprites.drawCaravan(ctx, caravan, screenX, screenY, zoom);
+            },
+          });
+        }
+      }
+    }
+
     // Sort by yOrder ascending
     drawables.sort((a, b) => a.yOrder - b.yOrder);
 
     for (const item of drawables) {
       item.draw();
+    }
+  }
+
+  /**
+   * Renders footpaths and paved cobblestone roads on tiles
+   */
+  private renderRoads(
+    bounds: { minX: number; minY: number; maxX: number; maxY: number },
+    canvasW: number,
+    canvasH: number,
+    zoom: number
+  ): void {
+    if (!this.roadSystem) return;
+    const ctx = this.ctx;
+
+    for (let ty = bounds.minY; ty <= bounds.maxY; ty++) {
+      for (let tx = bounds.minX; tx <= bounds.maxX; tx++) {
+        const roadType = this.roadSystem.getRoadType(tx, ty);
+        if (roadType !== 'NONE') {
+          const { screenX, screenY } = this.camera.worldToScreen(tx, ty, canvasW, canvasH);
+          PixelSprites.drawRoad(ctx, roadType, Math.floor(screenX), Math.floor(screenY), zoom);
+        }
+      }
     }
   }
 
@@ -653,6 +797,85 @@ export class Renderer {
     }
   }
 
+  private renderSelectionHighlights(canvasW: number, canvasH: number, zoom: number): void {
+    if (this.selectedEntityIds.size === 0) return;
+    const ctx = this.ctx;
+    ctx.save();
+
+    const drawCorners = (x: number, y: number, w: number, h: number, color: string) => {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.5;
+      const cl = Math.max(3, Math.min(8, w * 0.3));
+
+      // Top-Left
+      ctx.beginPath();
+      ctx.moveTo(x, y + cl);
+      ctx.lineTo(x, y);
+      ctx.lineTo(x + cl, y);
+      ctx.stroke();
+
+      // Top-Right
+      ctx.beginPath();
+      ctx.moveTo(x + w - cl, y);
+      ctx.lineTo(x + w, y);
+      ctx.lineTo(x + w, y + cl);
+      ctx.stroke();
+
+      // Bottom-Right
+      ctx.beginPath();
+      ctx.moveTo(x + w, y + h - cl);
+      ctx.lineTo(x + w, y + h);
+      ctx.lineTo(x + w - cl, y + h);
+      ctx.stroke();
+
+      // Bottom-Left
+      ctx.beginPath();
+      ctx.moveTo(x + cl, y + h);
+      ctx.lineTo(x, y + h);
+      ctx.lineTo(x, y + h - cl);
+      ctx.stroke();
+    };
+
+    // Humans
+    for (const h of this.entityManager.getHumans()) {
+      if (this.selectedEntityIds.has(h.id)) {
+        const { screenX, screenY } = this.camera.worldToScreen(h.x, h.y, canvasW, canvasH);
+        drawCorners(screenX - zoom * 0.5, screenY - zoom * 0.9, zoom, zoom * 1.2, '#38bdf8');
+      }
+    }
+
+    // Animals
+    if (this.animalManager) {
+      for (const a of this.animalManager.getAnimals()) {
+        if (this.selectedEntityIds.has(a.id)) {
+          const { screenX, screenY } = this.camera.worldToScreen(a.x, a.y, canvasW, canvasH);
+          drawCorners(screenX - zoom * 0.5, screenY - zoom * 0.5, zoom, zoom, '#facc15');
+        }
+      }
+    }
+
+    ctx.restore();
+  }
+
+  private renderSelectionMarquee(): void {
+    if (!this.selectionMarquee) return;
+    const ctx = this.ctx;
+    const { startX, startY, currentX, currentY } = this.selectionMarquee;
+    const minX = Math.min(startX, currentX);
+    const minY = Math.min(startY, currentY);
+    const w = Math.abs(currentX - startX);
+    const h = Math.abs(currentY - startY);
+
+    ctx.save();
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 4]);
+    ctx.fillStyle = 'rgba(56, 189, 248, 0.15)';
+    ctx.fillRect(minX, minY, w, h);
+    ctx.strokeRect(minX, minY, w, h);
+    ctx.restore();
+  }
+
   private renderCursor(canvasW: number, canvasH: number, zoom: number): void {
     if (!this.cursorWorldPos) return;
 
@@ -662,15 +885,84 @@ export class Renderer {
 
     ctx.save();
 
-    if (this.activeTool === 'human') {
-      // Ghost preview of human placer
+    const tool = this.activeTool;
+
+    if (tool === 'move') {
+      // Hand / Move mode cursor
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(screenX, screenY, 8, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+      ctx.beginPath();
+      ctx.arc(screenX, screenY, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (tool === 'select') {
+      // Select cursor
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(screenX, screenY, 6, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(screenX - 9, screenY);
+      ctx.lineTo(screenX - 4, screenY);
+      ctx.moveTo(screenX + 4, screenY);
+      ctx.lineTo(screenX + 9, screenY);
+      ctx.moveTo(screenX, screenY - 9);
+      ctx.lineTo(screenX - 4, screenY - 4);
+      ctx.moveTo(screenX, screenY + 4);
+      ctx.lineTo(screenX, screenY + 9);
+      ctx.stroke();
+    } else if (tool === 'inspect') {
+      // Inspect tool
+      ctx.strokeStyle = '#a855f7';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(screenX, screenY, 8, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(screenX + 6, screenY + 6);
+      ctx.lineTo(screenX + 11, screenY + 11);
+      ctx.stroke();
+    } else if (tool === 'eraser') {
+      // Eraser tool
+      const r = (this.brushRadius / 2) * zoom;
+      ctx.strokeStyle = '#ef4444';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4, 4]);
+      ctx.fillStyle = 'rgba(239, 68, 68, 0.18)';
+      ctx.beginPath();
+      ctx.arc(screenX, screenY, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // Eraser cross
+      ctx.setLineDash([]);
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = '#f87171';
+      ctx.beginPath();
+      ctx.moveTo(screenX - 5, screenY - 5);
+      ctx.lineTo(screenX + 5, screenY + 5);
+      ctx.moveTo(screenX + 5, screenY - 5);
+      ctx.lineTo(screenX - 5, screenY + 5);
+      ctx.stroke();
+    } else if (
+      tool === 'human' ||
+      tool === 'deer' ||
+      tool === 'boar' ||
+      tool === 'wolf' ||
+      tool === 'chicken' ||
+      tool === 'cow'
+    ) {
+      // Creature tool preview
       const tileX = Math.floor(x);
       const tileY = Math.floor(y);
       const isWalkable = this.world.isWalkable(tileX, tileY);
-
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = isWalkable ? '#22c55e' : '#ef4444';
-      ctx.fillStyle = isWalkable ? 'rgba(34, 197, 94, 0.25)' : 'rgba(239, 68, 68, 0.25)';
 
       const { screenX: tileScreenX, screenY: tileScreenY } = this.camera.worldToScreen(
         tileX,
@@ -679,25 +971,183 @@ export class Renderer {
         canvasH
       );
 
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = isWalkable ? '#22c55e' : '#ef4444';
+      ctx.fillStyle = isWalkable ? 'rgba(34, 197, 94, 0.25)' : 'rgba(239, 68, 68, 0.25)';
       ctx.strokeRect(tileScreenX, tileScreenY, zoom, zoom);
       ctx.fillRect(tileScreenX, tileScreenY, zoom, zoom);
 
       ctx.fillStyle = isWalkable ? '#4ade80' : '#f87171';
       ctx.beginPath();
-      ctx.arc(screenX, screenY - zoom * 0.2, zoom * 0.18, 0, Math.PI * 2);
+      ctx.arc(screenX, screenY, zoom * 0.25, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillRect(screenX - zoom * 0.15, screenY, zoom * 0.3, zoom * 0.3);
+    } else if (tool === 'tree' || tool === 'berry_bush' || tool === 'stone') {
+      // Resource placement preview
+      const tileX = Math.floor(x);
+      const tileY = Math.floor(y);
+      const isWalkable = this.world.isWalkable(tileX, tileY) && !this.resourceManager.hasResourceAt(tileX, tileY);
+
+      const { screenX: tileScreenX, screenY: tileScreenY } = this.camera.worldToScreen(
+        tileX,
+        tileY,
+        canvasW,
+        canvasH
+      );
+
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = isWalkable ? '#22c55e' : '#ef4444';
+      ctx.fillStyle = isWalkable ? 'rgba(34, 197, 94, 0.25)' : 'rgba(239, 68, 68, 0.25)';
+      ctx.strokeRect(tileScreenX, tileScreenY, zoom, zoom);
+      ctx.fillRect(tileScreenX, tileScreenY, zoom, zoom);
+    } else if (
+      tool === 'house' ||
+      tool === 'storage' ||
+      tool === 'town_hall' ||
+      tool === 'farm' ||
+      tool === 'animal_pen'
+    ) {
+      // Building placement preview
+      const tileX = Math.floor(x);
+      const tileY = Math.floor(y);
+      const isWalkable = this.world.isWalkable(tileX, tileY) && !(this.buildingManager && this.buildingManager.findBuildingAt(tileX, tileY));
+
+      const { screenX: tileScreenX, screenY: tileScreenY } = this.camera.worldToScreen(
+        tileX,
+        tileY,
+        canvasW,
+        canvasH
+      );
+
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = isWalkable ? '#22c55e' : '#ef4444';
+      ctx.fillStyle = isWalkable ? 'rgba(34, 197, 94, 0.25)' : 'rgba(239, 68, 68, 0.25)';
+      ctx.strokeRect(tileScreenX, tileScreenY, zoom, zoom);
+      ctx.fillRect(tileScreenX, tileScreenY, zoom, zoom);
+    } else if (
+      tool === 'lightning' ||
+      tool === 'meteor' ||
+      tool === 'earthquake' ||
+      tool === 'fire' ||
+      tool === 'heal_rain' ||
+      tool === 'divine_shield' ||
+      tool === 'rejuvenate' ||
+      tool === 'warrior_boost' ||
+      tool === 'grenade' ||
+      tool === 'napalm' ||
+      tool === 'freeze'
+    ) {
+      // Stylized Divine Reticles
+      let reticleColor = '#a855f7';
+      let reticleRadiusTiles = 3.5;
+      let label = 'БОГ';
+
+      if (tool === 'lightning') {
+        reticleColor = '#facc15';
+        reticleRadiusTiles = 2.0;
+        label = '⚡ МОЛНИЯ';
+      } else if (tool === 'meteor') {
+        reticleColor = '#ea580c';
+        reticleRadiusTiles = 4.0;
+        label = '☄️ МЕТЕОРИТ';
+      } else if (tool === 'earthquake') {
+        reticleColor = '#b45309';
+        reticleRadiusTiles = 6.0;
+        label = '🌋 ЗЕМЛЕТРЯСЕНИЕ';
+      } else if (tool === 'fire') {
+        reticleColor = '#f97316';
+        reticleRadiusTiles = 2.5;
+        label = '🔥 ОГОНЬ';
+      } else if (tool === 'heal_rain') {
+        reticleColor = '#38bdf8';
+        reticleRadiusTiles = 5.0;
+        label = '🌧️ ДОЖДЬ';
+      } else if (tool === 'divine_shield') {
+        reticleColor = '#facc15';
+        reticleRadiusTiles = 4.5;
+        label = '🛡️ ЩИТ';
+      } else if (tool === 'rejuvenate') {
+        reticleColor = '#10b981';
+        reticleRadiusTiles = 4.5;
+        label = '✨ МОЛОДОСТЬ';
+      } else if (tool === 'warrior_boost') {
+        reticleColor = '#ef4444';
+        reticleRadiusTiles = 4.5;
+        label = '⚔️ ЯРОСТЬ';
+      } else if (tool === 'grenade') {
+        reticleColor = '#f59e0b';
+        reticleRadiusTiles = 3.0;
+        label = '💣 ГРАНАТА';
+      } else if (tool === 'napalm') {
+        reticleColor = '#c084fc';
+        reticleRadiusTiles = 3.5;
+        label = '🔥 НАПАЛМ';
+      } else if (tool === 'freeze') {
+        reticleColor = '#0ea5e9';
+        reticleRadiusTiles = 4.0;
+        label = '❄️ ЗАМОРОЗКА';
+      }
+
+      const pixelR = reticleRadiusTiles * zoom;
+      const pulse = Math.sin(this.animTime * 6) * 0.15 + 0.85;
+
+      // Outer dashed circle
+      ctx.strokeStyle = reticleColor;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 4]);
+      ctx.beginPath();
+      ctx.arc(screenX, screenY, pixelR, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Soft glow area
+      ctx.fillStyle = `${reticleColor}22`;
+      ctx.beginPath();
+      ctx.arc(screenX, screenY, pixelR, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Inner pulse ring
+      ctx.strokeStyle = `${reticleColor}aa`;
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.arc(screenX, screenY, pixelR * 0.45 * pulse, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Crosshair lines
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(screenX - 8, screenY);
+      ctx.lineTo(screenX + 8, screenY);
+      ctx.moveTo(screenX, screenY - 8);
+      ctx.lineTo(screenX, screenY + 8);
+      ctx.stroke();
+
+      // Power title tag above cursor
+      ctx.font = 'bold 10px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(screenX - 45, screenY - pixelR - 18, 90, 15);
+      ctx.strokeStyle = reticleColor;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(screenX - 45, screenY - pixelR - 18, 90, 15);
+      ctx.fillStyle = reticleColor;
+      ctx.fillText(label, screenX, screenY - pixelR - 7);
     } else {
-      // Circular brush preview for terrain tools
+      // Biome / Terrain brush preview
       const r = (this.brushRadius / 2) * zoom;
 
-      let color = '#22c55e'; // default green for land
-      if (this.activeTool === 'forest') color = '#15803d';
-      else if (this.activeTool === 'mountain') color = '#94a3b8';
-      else if (this.activeTool === 'snow') color = '#f8fafc';
-      else if (this.activeTool === 'sand') color = '#facc15';
-      else if (this.activeTool === 'water') color = '#38bdf8';
+      let color = '#22c55e'; // default green
+      if (tool === 'forest') color = '#15803d';
+      else if (tool === 'desert') color = '#eab308';
+      else if (tool === 'savanna') color = '#84cc16';
+      else if (tool === 'swamp') color = '#4d7c0f';
+      else if (tool === 'snow') color = '#f8fafc';
+      else if (tool === 'tundra') color = '#94a3b8';
+      else if (tool === 'rocky' || tool === 'mountain') color = '#64748b';
+      else if (tool === 'beach' || tool === 'sand') color = '#facc15';
+      else if (tool === 'water') color = '#38bdf8';
 
+      // Outer dashed circle (falloff limit)
       ctx.strokeStyle = color;
       ctx.lineWidth = 2;
       ctx.setLineDash([4, 4]);
@@ -705,13 +1155,24 @@ export class Renderer {
       ctx.arc(screenX, screenY, r, 0, Math.PI * 2);
       ctx.stroke();
 
-      ctx.fillStyle = `${color}33`; // 20% opacity
+      ctx.fillStyle = `${color}28`; // translucent fill
       ctx.beginPath();
       ctx.arc(screenX, screenY, r, 0, Math.PI * 2);
       ctx.fill();
 
+      // Inner solid circle if hardness < 1.0
+      if (this.brushHardness < 0.99) {
+        const innerR = r * this.brushHardness;
+        ctx.strokeStyle = `${color}cc`;
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([]);
+        ctx.beginPath();
+        ctx.arc(screenX, screenY, innerR, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
       // Center crosshair
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
       ctx.lineWidth = 1;
       ctx.setLineDash([]);
       ctx.beginPath();
@@ -723,5 +1184,44 @@ export class Renderer {
     }
 
     ctx.restore();
+  }
+
+  /**
+   * Render all burning tiles
+   */
+  private renderFires(
+    bounds: { minX: number; minY: number; maxX: number; maxY: number },
+    canvasW: number,
+    canvasH: number,
+    zoom: number
+  ): void {
+    if (!this.godPowersManager) return;
+    const activeFires = this.godPowersManager.fireSystem.getActiveFires();
+    if (activeFires.length === 0) return;
+
+    for (const fire of activeFires) {
+      if (
+        fire.x >= bounds.minX - 1 &&
+        fire.x <= bounds.maxX + 1 &&
+        fire.y >= bounds.minY - 1 &&
+        fire.y <= bounds.maxY + 1
+      ) {
+        const { screenX, screenY } = this.camera.worldToScreen(
+          fire.x,
+          fire.y,
+          canvasW,
+          canvasH
+        );
+        PixelSprites.drawFireTile(
+          this.ctx,
+          screenX,
+          screenY,
+          zoom,
+          fire.intensity,
+          fire.isNapalm ?? false,
+          this.animTime
+        );
+      }
+    }
   }
 }

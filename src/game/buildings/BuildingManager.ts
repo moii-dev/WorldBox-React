@@ -25,6 +25,10 @@ export class BuildingManager {
     return this.buildings.get(id);
   }
 
+  public getBuildings(): Building[] {
+    return Array.from(this.buildings.values());
+  }
+
   public selectBuilding(id: string | null): void {
     this.selectedBuildingId = id;
   }
@@ -38,6 +42,16 @@ export class BuildingManager {
     const list: Building[] = [];
     for (const b of this.buildings.values()) {
       if (b.x + b.width >= minX && b.x <= maxX && b.y + b.height >= minY && b.y <= maxY) {
+        list.push(b);
+      }
+    }
+    return list;
+  }
+
+  public getBuildingsForSettlement(settlementId: string): Building[] {
+    const list: Building[] = [];
+    for (const b of this.buildings.values()) {
+      if (b.settlementId === settlementId) {
         list.push(b);
       }
     }
@@ -164,6 +178,10 @@ export class BuildingManager {
     return this.buildings.delete(id);
   }
 
+  public demolishBuilding(id: string, _world?: World): boolean {
+    return this.removeBuilding(id);
+  }
+
   /**
    * Find incomplete building needing resources or labor closest to (x, y)
    */
@@ -219,6 +237,74 @@ export class BuildingManager {
     }
 
     return bestHouse;
+  }
+
+  /**
+   * Find a farm with ready crops to harvest
+   */
+  public findFarmReadyForHarvest(settlementId?: string | null): Building | null {
+    for (const b of this.buildings.values()) {
+      if (b.type === 'FARM' && b.isCompleted && b.cropStage === 'READY') {
+        if (!settlementId || b.settlementId === settlementId) {
+          return b;
+        }
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Find a completed animal pen for livestock
+   */
+  public findAnimalPen(settlementId: string | null): Building | null {
+    for (const b of this.buildings.values()) {
+      if (b.type === 'ANIMAL_PEN' && b.isCompleted) {
+        if (!settlementId || b.settlementId === settlementId) {
+          return b;
+        }
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Find nearest completed building of optional type
+   */
+  public findNearestBuilding(
+    nearX: number,
+    nearY: number,
+    type?: BuildingType,
+    maxDistance: number = Infinity
+  ): Building | null {
+    let best: Building | null = null;
+    let minDistSq = maxDistance * maxDistance;
+
+    for (const b of this.buildings.values()) {
+      if (type && b.type !== type) continue;
+      if (!b.isCompleted) continue;
+
+      const dx = b.x - nearX;
+      const dy = b.y - nearY;
+      const distSq = dx * dx + dy * dy;
+
+      if (distSq < minDistSq) {
+        minDistSq = distSq;
+        best = b;
+      }
+    }
+
+    return best;
+  }
+
+  /**
+   * Periodic update for all completed farms to advance crop growth
+   */
+  public updateFarms(growthSpeed: number = 0.004): void {
+    for (const b of this.buildings.values()) {
+      if (b.type === 'FARM' && b.isCompleted) {
+        b.updateFarm(growthSpeed);
+      }
+    }
   }
 
   public clear(): void {

@@ -6,14 +6,14 @@ import { HistoryManager } from '../history/HistoryManager';
 import { SIMULATION_CONFIG } from '../SimulationConfig';
 
 const KINGDOM_TITLES = [
-  'Kingdom of', 'Realm of', 'Empire of', 'Grand Duchy of',
-  'Dominion of', 'Republic of', 'Crownlands of', 'Principality of'
+  'Королевство', 'Царство', 'Империя', 'Княжество',
+  'Герцогство', 'Владение', 'Республика', 'Держава'
 ];
 
 const KINGDOM_ROOTS = [
-  'Valen', 'Arden', 'Stonefall', 'Greenreach', 'Oakhaven', 'Ironholm',
-  'Frostpeak', 'Sunridge', 'Ravenholm', 'Drakewood', 'Stormwatch', 'Aethel',
-  'Eldoria', 'Norvold', 'Crestfall', 'Wyrmrest', 'Silverdale', 'Highmount'
+  'Вален', 'Арден', 'Камнепад', 'Зеленолесье', 'Дубрава', 'Железный Пик',
+  'Морозный Пик', 'Солнечный Хребет', 'Вороний Холм', 'Драконий Лес', 'Буревест', 'Эльдория',
+  'Норволд', 'Серебряный Дол', 'Высокогорье', 'Ветродол', 'Белокаменск'
 ];
 
 const KINGDOM_COLORS = [
@@ -53,7 +53,7 @@ export class KingdomManager {
         return candidate;
       }
     }
-    const fallback = `Kingdom ${this.kingdoms.size + 1}`;
+    const fallback = `Королевство ${this.kingdoms.size + 1}`;
     this.usedNames.add(fallback);
     return fallback;
   }
@@ -123,7 +123,7 @@ export class KingdomManager {
 
         historyManager.logEvent(
           gameYear,
-          `Year ${gameYear} — The ${kingdom.name} was established with its capital in ${settlement.name}!`,
+          `Год ${gameYear} — Основано ${kingdom.name} со столицей в поселении ${settlement.name}!`,
           'KINGDOM_CREATED',
           kingdom.color
         );

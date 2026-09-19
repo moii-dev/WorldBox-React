@@ -1,6 +1,42 @@
 import { TileType, GameConfig, BiomeBreakdown } from '../types';
 import { Chunk } from './Chunk';
 import { Noise } from './Noise';
+import { UndoManager } from '../history/UndoManager';
+
+export const BIOME_ID_LIST: string[] = [
+  'grassland',
+  'forest',
+  'desert',
+  'savanna',
+  'swamp',
+  'snow',
+  'tundra',
+  'rocky',
+  'beach',
+];
+export const BIOME_INDEX_MAP = new Map<string, number>(BIOME_ID_LIST.map((id, idx) => [id, idx]));
+export const BIOME_TILE_MAP: Record<string, TileType> = {
+  grassland: TileType.LAND,
+  forest: TileType.FOREST,
+  desert: TileType.SAND,
+  savanna: TileType.LAND,
+  swamp: TileType.SWAMP,
+  snow: TileType.SNOW,
+  tundra: TileType.LAND,
+  rocky: TileType.MOUNTAIN,
+  beach: TileType.SAND,
+};
+export const BIOME_ELEVATION_MAP: Record<string, number> = {
+  grassland: 0.55,
+  forest: 0.65,
+  desert: 0.45,
+  savanna: 0.52,
+  swamp: 0.48,
+  snow: 0.95,
+  tundra: 0.70,
+  rocky: 0.85,
+  beach: 0.44,
+};
 
 export const DEFAULT_CONFIG: GameConfig = {
   worldWidth: 256,
@@ -19,6 +55,7 @@ export class World {
   public readonly chunksY: number;
 
   public tiles: Uint8Array;
+  public biomesArray: Uint8Array;
   public elevation: Float32Array;
   public noise: Uint8Array;
   public borderMasks: Uint8Array;
@@ -26,6 +63,7 @@ export class World {
   public waterNoise: Int8Array;
   public isWaterDirty: boolean = false;
   private chamferDist: Uint16Array | null = null;
+  private noiseGen: Noise;
 
   public chunks: Chunk[][];
 
@@ -52,11 +90,13 @@ export class World {
 
     const totalTiles = this.width * this.height;
     this.tiles = new Uint8Array(totalTiles);
+    this.biomesArray = new Uint8Array(totalTiles);
     this.elevation = new Float32Array(totalTiles);
     this.noise = new Uint8Array(totalTiles);
     this.borderMasks = new Uint8Array(totalTiles);
     this.waterDistance = new Uint8Array(totalTiles);
     this.waterNoise = new Int8Array(totalTiles);
+    this.noiseGen = new Noise(1337);
 
     // Initialize chunks
     this.chunks = [];
@@ -74,6 +114,7 @@ export class World {
     const totalTiles = this.width * this.height;
     for (let i = 0; i < totalTiles; i++) {
       this.tiles[i] = TileType.WATER;
+      this.biomesArray[i] = 0;
       this.elevation[i] = 0.1;
       this.noise[i] = Math.floor(Math.random() * 256);
       this.borderMasks[i] = 0;
@@ -81,7 +122,7 @@ export class World {
     }
 
     // Precompute smooth, deterministic low-frequency spatial variation for ocean currents
-    const noiseGen = new Noise(1337);
+    const noiseGen = this.noiseGen;
     for (let y = 0; y < this.height; y++) {
       for (let x = 0; x < this.width; x++) {
         const idx = y * this.width + x;
@@ -184,12 +225,17 @@ export class World {
     }
   }
 
-  public setTile(x: number, y: number, type: TileType, elevation: number = 0.5): boolean {
+  public setTile(x: number, y: number, type: TileType, elevation: number = 0.5, undoManager?: UndoManager): boolean {
     if (!this.isInBounds(x, y)) return false;
 
     const idx = this.getIndex(x, y);
     const prevType = this.tiles[idx];
-    if (prevType === type) return false;
+    const prevElev = this.elevation[idx];
+    if (prevType === type && Math.abs(prevElev - elevation) < 0.01) return false;
+
+    if (undoManager) {
+      undoManager.recordTileChange(idx, prevType, prevElev, type, elevation);
+    }
 
     this.tiles[idx] = type;
     this.elevation[idx] = elevation;
@@ -223,6 +269,76 @@ export class World {
 
     this.updateBordersAround(x, y);
     return true;
+  }
+
+  public getBiomeAt(x: number, y: number): string {
+    if (!this.isInBounds(x, y)) return 'grassland';
+    const idx = this.getIndex(x, y);
+    const bIdx = this.biomesArray[idx];
+    return BIOME_ID_LIST[bIdx] || 'grassland';
+  }
+
+  public setBiomeAt(x: number, y: number, biomeId: string, undoManager?: UndoManager): boolean {
+    if (!this.isInBounds(x, y)) return false;
+    const idx = this.getIndex(x, y);
+    const bIndex = BIOME_INDEX_MAP.get(biomeId) ?? 0;
+    this.biomesArray[idx] = bIndex;
+
+    const targetTile = BIOME_TILE_MAP[biomeId] ?? TileType.LAND;
+    const targetElev = BIOME_ELEVATION_MAP[biomeId] ?? 0.55;
+    return this.setTile(x, y, targetTile, targetElev, undoManager);
+  }
+
+  public paintBiome(
+    centerX: number,
+    centerY: number,
+    brushRadius: number,
+    biomeId: string,
+    hardness: number = 1.0,
+    undoManager?: UndoManager
+  ): number {
+    const r = Math.max(0.5, brushRadius / 2);
+    const minX = Math.max(0, Math.floor(centerX - r - 2));
+    const maxX = Math.min(this.width - 1, Math.ceil(centerX + r + 2));
+    const minY = Math.max(0, Math.floor(centerY - r - 2));
+    const maxY = Math.min(this.height - 1, Math.ceil(centerY + r + 2));
+
+    let changed = 0;
+    const innerThreshold = Math.max(0.1, hardness);
+
+    for (let y = minY; y <= maxY; y++) {
+      for (let x = minX; x <= maxX; x++) {
+        const dx = x - centerX;
+        const dy = y - centerY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const normDist = dist / r;
+
+        if (normDist > 1.0) continue;
+
+        let shouldPaint = false;
+        if (normDist <= innerThreshold) {
+          shouldPaint = true;
+        } else {
+          const falloff = (normDist - innerThreshold) / (1.0 - innerThreshold);
+          const noiseSample = (this.noiseGen.noise2D(x * 0.28, y * 0.28) + 1) * 0.5;
+          if (noiseSample > falloff * 0.95) {
+            shouldPaint = true;
+          }
+        }
+
+        if (shouldPaint) {
+          if (this.setBiomeAt(x, y, biomeId, undoManager)) {
+            changed++;
+          }
+        }
+      }
+    }
+
+    if (changed > 0 || this.isWaterDirty) {
+      this.recalculateWaterDepth();
+    }
+
+    return changed;
   }
 
   private isWalkableType(type: TileType): boolean {
@@ -510,7 +626,8 @@ export class World {
     centerX: number,
     centerY: number,
     brushRadius: number,
-    targetType: TileType | 'auto_land' = 'auto_land'
+    targetType: TileType | 'auto_land' = 'auto_land',
+    undoManager?: UndoManager
   ): number {
     const r = Math.max(0.5, brushRadius / 2);
     const rSq = r * r;
@@ -574,7 +691,7 @@ export class World {
             elev = 0.6;
           }
 
-          if (this.setTile(x, y, type, elev)) {
+          if (this.setTile(x, y, type, elev, undoManager)) {
             changed++;
           }
         }

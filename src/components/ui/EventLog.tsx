@@ -37,10 +37,10 @@ export const EventLog: React.FC<EventLogProps> = ({ events = [] }) => {
       <button
         onClick={() => setIsExpanded((prev) => !prev)}
         className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800/95 backdrop-blur-md border border-slate-700/80 shadow-xl text-slate-200 text-xs font-medium transition-all"
-        title="Toggle World Chronicle"
+        title="Летопись мира"
       >
         <Scroll className="w-3.5 h-3.5 text-amber-400" />
-        <span>World Chronicle</span>
+        <span>Летопись мира</span>
         <span className="px-1.5 py-0.2 rounded-full bg-slate-800 text-[10px] font-mono text-amber-300 font-bold border border-slate-700">
           {safeEvents.length}
         </span>
@@ -51,12 +51,12 @@ export const EventLog: React.FC<EventLogProps> = ({ events = [] }) => {
       {isExpanded && (
         <div className="mt-2 w-80 max-h-72 overflow-y-auto bg-slate-900/95 backdrop-blur-md rounded-xl border border-slate-700/80 shadow-2xl p-3 text-slate-200 text-xs flex flex-col gap-1.5 animate-in fade-in slide-in-from-top-1">
           <div className="flex items-center justify-between pb-1.5 border-b border-slate-800 text-[10px] uppercase font-semibold tracking-wider text-slate-400">
-            <span>Recent Events</span>
-            <span>Historical Log</span>
+            <span>Недавние события</span>
+            <span>Хроника</span>
           </div>
 
           {events.length === 0 ? (
-            <div className="py-4 text-center text-slate-500 italic">No historical events recorded yet.</div>
+            <div className="py-4 text-center text-slate-500 italic">Событий пока не произошло.</div>
           ) : (
             recentEvents.map((evt) => (
               <div
@@ -66,7 +66,7 @@ export const EventLog: React.FC<EventLogProps> = ({ events = [] }) => {
                 <div className="mt-0.5">{getEventIcon(evt.type)}</div>
                 <div className="flex-1">
                   <span className="text-slate-100">{evt.text}</span>
-                  <div className="mt-0.5 text-[9px] font-mono text-slate-500">Year {evt.year}</div>
+                  <div className="mt-0.5 text-[9px] font-mono text-slate-500">Год {evt.year}</div>
                 </div>
               </div>
             ))

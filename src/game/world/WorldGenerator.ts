@@ -114,17 +114,24 @@ export class WorldGenerator {
           continue;
         }
 
-        // Forest: very high density of trees
-        if (tile === TileType.FOREST && Math.random() < 0.28) {
-          resourceManager.addResource(ResourceType.TREE, x, y);
+        // Forest: very high density of trees, plus berry bushes
+        if (tile === TileType.FOREST) {
+          const rand = Math.random();
+          if (rand < 0.25) {
+            resourceManager.addResource(ResourceType.TREE, x, y);
+          } else if (rand < 0.28) {
+            resourceManager.addResource(ResourceType.BERRY_BUSH, x, y);
+          }
         }
-        // Plains: balanced trees and occasional stone
+        // Plains: balanced trees, occasional stone, and berry bushes
         else if (tile === TileType.LAND) {
           const rand = Math.random();
           if (rand < 0.07) {
             resourceManager.addResource(ResourceType.TREE, x, y);
           } else if (rand < 0.1) {
             resourceManager.addResource(ResourceType.STONE, x, y);
+          } else if (rand < 0.13) {
+            resourceManager.addResource(ResourceType.BERRY_BUSH, x, y);
           }
         }
         // Mountain: high density of stone boulders

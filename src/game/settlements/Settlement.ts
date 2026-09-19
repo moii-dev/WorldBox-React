@@ -17,6 +17,13 @@ export class Settlement implements SettlementEntity {
   public lastColonizationYear: number = 0;
   public captureTimer: number = 0; // if enemy soldiers occupy town hall
 
+  // Tech, Culture, Seafaring
+  public era: 'PRIMITIVE' | 'BRONZE' | 'IRON' | 'IMPERIAL' = 'PRIMITIVE';
+  public techPoints: number = 0;
+  public faith: number = 0;
+  public shipsCount: number = 0;
+  public isCoastal: boolean = false;
+
   private static idCounter: number = 1;
 
   constructor(name: string, x: number, y: number, kingdomId: string | null = null) {
@@ -80,4 +87,14 @@ export class Settlement implements SettlementEntity {
     this.storage.stone -= available;
     return available;
   }
+
+  public withdrawFood(amount: number): number {
+    const available = Math.min(this.storage.food, amount);
+    this.storage.food -= available;
+    return available;
+  }
+
+  public foodProductionRate: number = 0;
+  public foodConsumptionRate: number = 0;
+  public starvingCitizensCount: number = 0;
 }

@@ -19,8 +19,18 @@ export class DiplomacyManager {
     return a < b ? `${a}_${b}` : `${b}_${a}`;
   }
 
-  public getStatus(kingdomAId: string, kingdomBId: string, kingdomManager: KingdomManager): DiplomaticStatus {
+  public getStatus(kingdomAId: string, kingdomBId: string, kingdomManager?: KingdomManager): DiplomaticStatus {
     if (kingdomAId === kingdomBId) return 'ALLIED';
+    for (const war of this.wars.values()) {
+      if (
+        war.status === 'ACTIVE' &&
+        ((war.kingdomAId === kingdomAId && war.kingdomBId === kingdomBId) ||
+          (war.kingdomAId === kingdomBId && war.kingdomBId === kingdomAId))
+      ) {
+        return 'WAR';
+      }
+    }
+    if (!kingdomManager) return 'NEUTRAL';
     const kA = kingdomManager.getKingdom(kingdomAId);
     if (!kA) return 'NEUTRAL';
 
@@ -62,7 +72,7 @@ export class DiplomacyManager {
 
           historyManager.logEvent(
             gameYear,
-            `Year ${gameYear} — The ${kA.name} and the ${kB.name} have established contact.`,
+            `Год ${gameYear} — Государства ${kA.name} и ${kB.name} установили дипломатический контакт.`,
             'RELATION_CHANGE',
             '#38bdf8'
           );
@@ -163,7 +173,7 @@ export class DiplomacyManager {
 
     historyManager.logEvent(
       gameYear,
-      `Year ${gameYear} — ⚔️ WAR DECLARED! ${kA.name} declared war on ${kB.name}!`,
+      `Год ${gameYear} — ⚔️ ВОЙНА! ${kA.name} объявляет войну государству ${kB.name}!`,
       'WAR_DECLARED',
       '#ef4444'
     );
@@ -198,7 +208,7 @@ export class DiplomacyManager {
 
     historyManager.logEvent(
       gameYear,
-      `Year ${gameYear} — 🕊️ Peace Treaty: ${kA.name} and ${kB.name} have ceased hostilities.`,
+      `Год ${gameYear} — 🕊️ Мирный договор: ${kA.name} и ${kB.name} прекратили боевые действия.`,
       'PEACE_SIGNED',
       '#60a5fa'
     );

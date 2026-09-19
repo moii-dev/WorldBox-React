@@ -7,11 +7,21 @@ export class Camera {
   public readonly minZoom: number;
   public readonly maxZoom: number;
 
+  // Inertia / momentum velocity in tiles per second
+  public vx: number = 0;
+  public vy: number = 0;
+
+  // Screen shake
+  public shakeIntensity: number = 0;
+  public shakeDuration: number = 0;
+  public shakeOffsetX: number = 0;
+  public shakeOffsetY: number = 0;
+
   constructor(
     startX: number = 128,
     startY: number = 128,
     initialZoom: number = 16,
-    minZoom: number = 4,
+    minZoom: number = 3,
     maxZoom: number = 48
   ) {
     this.x = startX;
@@ -19,6 +29,43 @@ export class Camera {
     this.zoom = initialZoom;
     this.minZoom = minZoom;
     this.maxZoom = maxZoom;
+  }
+
+  public update(dt: number, worldWidth: number, worldHeight: number): void {
+    if (Math.abs(this.vx) > 0.001 || Math.abs(this.vy) > 0.001) {
+      this.setPosition(this.x + this.vx * dt, this.y + this.vy * dt, worldWidth, worldHeight);
+
+      // Dampen velocity smoothly (moderate friction: stops cleanly without overshoot)
+      const friction = Math.pow(0.86, dt * 60);
+      this.vx *= friction;
+      this.vy *= friction;
+
+      if (Math.hypot(this.vx, this.vy) < 0.05) {
+        this.vx = 0;
+        this.vy = 0;
+      }
+    }
+
+    // Screen shake update
+    if (this.shakeDuration > 0) {
+      this.shakeDuration -= dt;
+      this.shakeOffsetX = (Math.random() * 2 - 1) * this.shakeIntensity;
+      this.shakeOffsetY = (Math.random() * 2 - 1) * this.shakeIntensity;
+      this.shakeIntensity = Math.max(0, this.shakeIntensity - dt * 10);
+      if (this.shakeDuration <= 0) {
+        this.shakeOffsetX = 0;
+        this.shakeOffsetY = 0;
+        this.shakeIntensity = 0;
+      }
+    } else {
+      this.shakeOffsetX = 0;
+      this.shakeOffsetY = 0;
+    }
+  }
+
+  public addShake(intensity: number, duration: number = 0.4): void {
+    this.shakeIntensity = Math.max(this.shakeIntensity, intensity);
+    this.shakeDuration = Math.max(this.shakeDuration, duration);
   }
 
   public getState(): CameraState {
@@ -57,8 +104,13 @@ export class Camera {
     // Current world position under cursor
     const worldBefore = this.screenToWorld(screenX, screenY, canvasWidth, canvasHeight);
 
-    // Apply zoom
-    const newZoom = Math.max(this.minZoom, Math.min(this.maxZoom, this.zoom + zoomDelta));
+    // Proportional zoom factor
+    let newZoom: number;
+    if (zoomDelta > 0) {
+      newZoom = Math.min(this.maxZoom, Math.max(this.zoom + 1, Math.round(this.zoom * 1.2)));
+    } else {
+      newZoom = Math.max(this.minZoom, Math.min(this.zoom - 1, Math.round(this.zoom / 1.2)));
+    }
     if (newZoom === this.zoom) return;
 
     this.zoom = newZoom;

@@ -43,6 +43,15 @@ export class HistoryManager {
     return [...this.eventsList].reverse();
   }
 
+  public getEvents(): WorldEvent[] {
+    return [...this.eventsList];
+  }
+
+  public setEvents(events: WorldEvent[]): void {
+    this.eventsList = [...events];
+    this.nextEventId = this.eventsList.length + 1;
+  }
+
   public clear(): void {
     this.eventsList = [];
     this.nextEventId = 1;

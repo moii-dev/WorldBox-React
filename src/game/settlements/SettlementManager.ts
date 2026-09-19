@@ -7,16 +7,16 @@ import { SIMULATION_CONFIG } from '../SimulationConfig';
 import { Profession } from '../types';
 
 const PREFIXES = [
-  'Oak', 'Stone', 'Green', 'River', 'Pine', 'Iron', 'Wolf', 'Deep',
-  'Sun', 'High', 'Frost', 'Amber', 'Silver', 'Storm', 'Shadow', 'White',
-  'Fair', 'Bramble', 'Ash', 'Clay', 'Red', 'Gold', 'Moss', 'Ember',
-  'Cedar', 'Raven', 'Alder', 'Opal', 'Birch', 'Wind'
+  'Дубовый', 'Каменный', 'Зеленый', 'Речной', 'Сосновый', 'Железный', 'Волчий', 'Глубокий',
+  'Солнечный', 'Высокий', 'Морозный', 'Янтарный', 'Серебряный', 'Штормовой', 'Тенистый', 'Белый',
+  'Ясный', 'Ольховый', 'Ясеневый', 'Глиняный', 'Красный', 'Золотой', 'Мшистый', 'Огненный',
+  'Кедровый', 'Вороний', 'Ольховый', 'Березовый', 'Ветреный', 'Озерный'
 ];
 
 const SUFFIXES = [
-  'vale', 'ford', 'haven', 'crest', 'fall', 'hold', 'wick', 'dale',
-  'port', 'gate', 'wood', 'bridge', 'keep', 'borough', 'stead', 'cliff',
-  'brook', 'field', 'shire', 'bay', 'glen', 'reach', 'mire', 'mill'
+  ' Дол', ' Брод', ' Причал', ' Пик', ' Холм', ' Рог', ' Порт', ' Лес',
+  ' Мост', ' Замок', ' Берег', ' Ручей', ' Ключ', ' Стан', ' Лог', ' Мыс',
+  ' Посад', ' Удел', ' Край', ' Острог', ' Плёс', ' Яр', ' Спуск', ' Родник'
 ];
 
 export class SettlementManager {
@@ -44,7 +44,7 @@ export class SettlementManager {
         return candidate;
       }
     }
-    const fallback = `Settlement ${this.settlements.size + 1}`;
+    const fallback = `Поселение ${this.settlements.size + 1}`;
     this.usedNames.add(fallback);
     return fallback;
   }
@@ -169,7 +169,7 @@ export class SettlementManager {
 
           historyManager.logEvent(
             gameYear,
-            `Year ${gameYear} — The settlement of ${settlement.name} was founded!`,
+            `Год ${gameYear} — Основано поселение ${settlement.name}!`,
             'SETTLEMENT_FOUNDED',
             '#10b981'
           );
@@ -213,7 +213,11 @@ export class SettlementManager {
       const houses = buildings.filter((b) => b.type === 'HOUSE');
       const storages = buildings.filter((b) => b.type === 'STORAGE');
       const townHalls = buildings.filter((b) => b.type === 'TOWN_HALL');
+      const farms = buildings.filter((b) => b.type === 'FARM');
+      const animalPens = buildings.filter((b) => b.type === 'ANIMAL_PEN');
       const completedHouses = houses.filter((h) => h.isCompleted);
+      const completedFarms = farms.filter((f) => f.isCompleted);
+      const completedPens = animalPens.filter((p) => p.isCompleted);
 
       // Check housing capacity vs population
       const totalCapacity = completedHouses.length * SIMULATION_CONFIG.houseCapacity;
@@ -223,8 +227,33 @@ export class SettlementManager {
       const unbuiltCount = buildings.filter((b) => !b.isCompleted).length;
 
       if (unbuiltCount === 0) {
+        // Farm priority: ensure at least 1 farm early, and more as population grows
+        const desiredFarms = Math.max(1, Math.floor(settlement.population / 4));
+        if (farms.length < desiredFarms && settlement.storage.wood >= SIMULATION_CONFIG.farmCost.wood) {
+          const site = buildingManager.findBuildingSite(world, resourceManager, settlement.x, settlement.y, 2, 2, 16);
+          if (site) {
+            const farm = buildingManager.placeBuilding('FARM', site.x, site.y, settlement.id, settlement.kingdomId);
+            settlement.addBuilding(farm.id);
+            settlement.withdrawWood(SIMULATION_CONFIG.farmCost.wood);
+          }
+        }
+        // Animal Pen: if population >= 5, at least 1 pen to herd livestock
+        else if (
+          animalPens.length < Math.max(1, Math.floor(settlement.population / 8)) &&
+          completedHouses.length >= 2 &&
+          settlement.storage.wood >= SIMULATION_CONFIG.penCost.wood &&
+          settlement.storage.stone >= SIMULATION_CONFIG.penCost.stone
+        ) {
+          const site = buildingManager.findBuildingSite(world, resourceManager, settlement.x, settlement.y, 3, 3, 18);
+          if (site) {
+            const pen = buildingManager.placeBuilding('ANIMAL_PEN', site.x, site.y, settlement.id, settlement.kingdomId);
+            settlement.addBuilding(pen.id);
+            settlement.withdrawWood(SIMULATION_CONFIG.penCost.wood);
+            settlement.withdrawStone(SIMULATION_CONFIG.penCost.stone);
+          }
+        }
         // Town Hall priority: if none exists and pop >= 6, build Town Hall
-        if (townHalls.length === 0 && settlement.population >= 6 && settlement.storage.wood >= 20) {
+        else if (townHalls.length === 0 && settlement.population >= 6 && settlement.storage.wood >= 20) {
           const site = buildingManager.findBuildingSite(world, resourceManager, settlement.x, settlement.y, 3, 3, 14);
           if (site) {
             const th = buildingManager.placeBuilding('TOWN_HALL', site.x, site.y, settlement.id, settlement.kingdomId);
@@ -243,6 +272,52 @@ export class SettlementManager {
             settlement.withdrawStone(Math.min(settlement.storage.stone, 5));
           }
         }
+        // Blacksmith: if Bronze era or pop >= 8, craft weapons and tools
+        else if (
+          buildings.filter((b) => b.type === 'BLACKSMITH').length === 0 &&
+          (settlement.era !== 'PRIMITIVE' || settlement.population >= 8) &&
+          settlement.storage.stone >= 15 &&
+          settlement.storage.wood >= 15
+        ) {
+          const site = buildingManager.findBuildingSite(world, resourceManager, settlement.x, settlement.y, 2, 2, 14);
+          if (site) {
+            const forge = buildingManager.placeBuilding('BLACKSMITH', site.x, site.y, settlement.id, settlement.kingdomId);
+            settlement.addBuilding(forge.id);
+            settlement.withdrawStone(15);
+            settlement.withdrawWood(15);
+          }
+        }
+        // Temple: if faith or Bronze era, generate spiritual unity & divine miracles
+        else if (
+          buildings.filter((b) => b.type === 'TEMPLE').length === 0 &&
+          settlement.era !== 'PRIMITIVE' &&
+          settlement.population >= 10 &&
+          settlement.storage.stone >= 25 &&
+          settlement.storage.wood >= 15
+        ) {
+          const site = buildingManager.findBuildingSite(world, resourceManager, settlement.x, settlement.y, 3, 3, 16);
+          if (site) {
+            const temple = buildingManager.placeBuilding('TEMPLE', site.x, site.y, settlement.id, settlement.kingdomId);
+            settlement.addBuilding(temple.id);
+            settlement.withdrawStone(25);
+            settlement.withdrawWood(15);
+          }
+        }
+        // Watchtower: military outpost for territory defense
+        else if (
+          buildings.filter((b) => b.type === 'WATCHTOWER').length < Math.max(1, Math.floor(settlement.population / 12)) &&
+          settlement.era !== 'PRIMITIVE' &&
+          settlement.storage.stone >= 15 &&
+          settlement.storage.wood >= 10
+        ) {
+          const site = buildingManager.findBuildingSite(world, resourceManager, settlement.x, settlement.y, 2, 2, 18);
+          if (site) {
+            const tower = buildingManager.placeBuilding('WATCHTOWER', site.x, site.y, settlement.id, settlement.kingdomId);
+            settlement.addBuilding(tower.id);
+            settlement.withdrawStone(15);
+            settlement.withdrawWood(10);
+          }
+        }
         // House: if homeless people exist and we have resources
         else if (homelessCount > 0 || completedHouses.length === 0) {
           const site = buildingManager.findBuildingSite(world, resourceManager, settlement.x, settlement.y, 2, 2, 16);
@@ -255,7 +330,7 @@ export class SettlementManager {
         }
       }
 
-      // 4. Profession assignment based on communal needs
+      // 4. Profession assignment based on communal survival and food needs
       const members = settlement.memberIds
         .map((id) => entityManager.getHuman(id))
         .filter((h): h is NonNullable<typeof h> => h !== undefined && h.lifeStage !== 'CHILD');
@@ -263,30 +338,50 @@ export class SettlementManager {
       const totalAdults = members.length;
       if (totalAdults > 0) {
         const atWar = isAtWar(settlement.kingdomId);
-        const soldierRatio = atWar ? 0.35 : 0.15;
-        const targetSoldiers = Math.max(atWar ? 2 : 1, Math.floor(totalAdults * soldierRatio));
-        const targetBuilders = unbuiltCount > 0 ? Math.max(1, Math.floor(totalAdults * 0.25)) : 0;
-        const targetWoodcutters = Math.max(1, Math.floor((totalAdults - targetSoldiers - targetBuilders) * 0.45));
-        const targetMiners = Math.max(1, Math.floor((totalAdults - targetSoldiers - targetBuilders) * 0.3));
+        const foodShortage = settlement.storage.food < 20;
 
-        let currentSoldiers = 0;
-        let currentBuilders = 0;
-        let currentWoodcutters = 0;
-        let currentMiners = 0;
+        // Target profession counts based on settlement needs
+        const targetSoldiers = atWar ? Math.max(2, Math.floor(totalAdults * 0.35)) : (totalAdults >= 5 ? 1 : 0);
+        const targetBuilders = unbuiltCount > 0 ? Math.max(1, Math.floor(totalAdults * 0.2)) : 0;
+        
+        // Food production targets: high priority during food shortage
+        const targetFarmers = completedFarms.length > 0 ? Math.min(completedFarms.length * 2, Math.max(1, Math.floor(totalAdults * (foodShortage ? 0.4 : 0.25)))) : 0;
+        const targetHunters = Math.max(foodShortage ? 2 : 1, Math.floor(totalAdults * (foodShortage ? 0.35 : 0.2)));
+        const targetHerders = completedPens.length > 0 ? 1 : 0;
+
+        let curSoldiers = 0;
+        let curBuilders = 0;
+        let curFarmers = 0;
+        let curHunters = 0;
+        let curHerders = 0;
+        let curWoodcutters = 0;
+        let curMiners = 0;
 
         for (const h of members) {
-          if (currentSoldiers < targetSoldiers) {
+          if (curSoldiers < targetSoldiers) {
             h.profession = 'SOLDIER';
-            currentSoldiers++;
-          } else if (currentBuilders < targetBuilders) {
+            curSoldiers++;
+          } else if (foodShortage && curHunters < targetHunters) {
+            h.profession = 'HUNTER';
+            curHunters++;
+          } else if (curFarmers < targetFarmers) {
+            h.profession = 'FARMER';
+            curFarmers++;
+          } else if (curHerders < targetHerders) {
+            h.profession = 'HERDER';
+            curHerders++;
+          } else if (curHunters < targetHunters) {
+            h.profession = 'HUNTER';
+            curHunters++;
+          } else if (curBuilders < targetBuilders) {
             h.profession = 'BUILDER';
-            currentBuilders++;
-          } else if (currentWoodcutters < targetWoodcutters) {
+            curBuilders++;
+          } else if (curWoodcutters < Math.max(1, Math.floor(totalAdults * 0.2))) {
             h.profession = 'WOODCUTTER';
-            currentWoodcutters++;
-          } else if (currentMiners < targetMiners) {
+            curWoodcutters++;
+          } else if (curMiners < Math.max(1, Math.floor(totalAdults * 0.15))) {
             h.profession = 'MINER';
-            currentMiners++;
+            curMiners++;
           } else {
             h.profession = 'WORKER';
           }

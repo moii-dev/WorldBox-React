@@ -1,5 +1,6 @@
 import { ResourceNode, ResourceType, TileType } from '../types';
 import { World } from '../world/World';
+import { FOOD_CONFIG } from '../FoodConfig';
 
 export class ResourceManager {
   public resources: Map<string, ResourceNode> = new Map();
@@ -9,6 +10,7 @@ export class ResourceManager {
 
   public treeCount: number = 0;
   public stoneCount: number = 0;
+  public berryBushCount: number = 0;
 
   private nextId: number = 1;
   private growthTimer: number = 0;
@@ -35,6 +37,18 @@ export class ResourceManager {
     return null;
   }
 
+  public hasResourceAt(tileX: number, tileY: number): boolean {
+    return this.getResourceAt(tileX, tileY) !== null;
+  }
+
+  public removeResourceAt(tileX: number, tileY: number): boolean {
+    const res = this.getResourceAt(tileX, tileY);
+    if (res) {
+      return this.removeResource(res.id);
+    }
+    return false;
+  }
+
   public addResource(
     type: ResourceType,
     x: number,
@@ -47,7 +61,17 @@ export class ResourceManager {
 
     const id = `res_${this.nextId++}`;
     const variant = variantOverride !== undefined ? variantOverride : Math.floor(Math.random() * 4);
-    const maxAmount = type === ResourceType.TREE ? 5 : 8;
+    let maxAmount = type === ResourceType.TREE ? 5 : 8;
+    let foodAmount: number | undefined;
+    let maxFood: number | undefined;
+    let regenRate: number | undefined;
+
+    if (type === ResourceType.BERRY_BUSH) {
+      maxAmount = FOOD_CONFIG.berryBush.maxFood;
+      foodAmount = FOOD_CONFIG.berryBush.initialFood;
+      maxFood = FOOD_CONFIG.berryBush.maxFood;
+      regenRate = FOOD_CONFIG.berryBush.regenRate;
+    }
 
     const node: ResourceNode = {
       id,
@@ -55,8 +79,11 @@ export class ResourceManager {
       x,
       y,
       variant,
-      amount: maxAmount,
+      amount: foodAmount !== undefined ? foodAmount : maxAmount,
       maxAmount,
+      foodAmount,
+      maxFood,
+      regenerationRate: regenRate,
     };
 
     this.resources.set(id, node);
@@ -69,11 +96,67 @@ export class ResourceManager {
 
     if (type === ResourceType.TREE) {
       this.treeCount++;
-    } else {
+    } else if (type === ResourceType.STONE) {
       this.stoneCount++;
+    } else if (type === ResourceType.BERRY_BUSH) {
+      this.berryBushCount++;
     }
 
     return node;
+  }
+
+  public addBerryBush(x: number, y: number, initialFood?: number): ResourceNode | null {
+    const node = this.addResource(ResourceType.BERRY_BUSH, x, y);
+    if (node && initialFood !== undefined) {
+      node.foodAmount = initialFood;
+      node.amount = initialFood;
+      node.berryCount = initialFood;
+    }
+    return node;
+  }
+
+  public addTree(x: number, y: number, amount?: number): ResourceNode | null {
+    const node = this.addResource(ResourceType.TREE, x, y);
+    if (node && amount !== undefined) {
+      node.amount = amount;
+      node.maxAmount = amount;
+    }
+    return node;
+  }
+
+  public addStone(x: number, y: number, amount?: number): ResourceNode | null {
+    const node = this.addResource(ResourceType.STONE, x, y);
+    if (node && amount !== undefined) {
+      node.amount = amount;
+      node.maxAmount = amount;
+    }
+    return node;
+  }
+
+  public findNearby(x: number, y: number, radius: number): ResourceNode[] {
+    const result: ResourceNode[] = [];
+    const minBx = Math.floor((x - radius) / this.bucketSize);
+    const maxBx = Math.floor((x + radius) / this.bucketSize);
+    const minBy = Math.floor((y - radius) / this.bucketSize);
+    const maxBy = Math.floor((y + radius) / this.bucketSize);
+    const radiusSq = radius * radius;
+
+    for (let by = minBy; by <= maxBy; by++) {
+      for (let bx = minBx; bx <= maxBx; bx++) {
+        const bucket = this.buckets.get(`${bx}_${by}`);
+        if (!bucket) continue;
+        for (const id of bucket) {
+          const res = this.resources.get(id);
+          if (!res) continue;
+          const dx = res.x - x;
+          const dy = res.y - y;
+          if (dx * dx + dy * dy <= radiusSq) {
+            result.push(res);
+          }
+        }
+      }
+    }
+    return result;
   }
 
   public removeResource(id: string): boolean {
@@ -92,8 +175,10 @@ export class ResourceManager {
 
     if (res.type === ResourceType.TREE) {
       this.treeCount = Math.max(0, this.treeCount - 1);
-    } else {
+    } else if (res.type === ResourceType.STONE) {
       this.stoneCount = Math.max(0, this.stoneCount - 1);
+    } else if (res.type === ResourceType.BERRY_BUSH) {
+      this.berryBushCount = Math.max(0, this.berryBushCount - 1);
     }
 
     return true;
@@ -102,6 +187,10 @@ export class ResourceManager {
   public harvestResource(id: string, amount: number = 1): { harvested: number; depleted: boolean } {
     const res = this.resources.get(id);
     if (!res) return { harvested: 0, depleted: true };
+
+    if (res.type === ResourceType.BERRY_BUSH) {
+      return { harvested: this.harvestBerryBush(id, amount), depleted: false };
+    }
 
     const actualHarvest = Math.min(res.amount, amount);
     res.amount -= actualHarvest;
@@ -112,6 +201,63 @@ export class ResourceManager {
     }
 
     return { harvested: actualHarvest, depleted };
+  }
+
+  /**
+   * Harvest berries from a berry bush without destroying the bush entity
+   */
+  public harvestBerryBush(id: string, amount: number = 1): number {
+    const res = this.resources.get(id);
+    if (!res || res.type !== ResourceType.BERRY_BUSH) return 0;
+
+    const currentFood = res.foodAmount ?? res.amount;
+    const harvested = Math.min(currentFood, amount);
+    const remaining = Math.max(0, currentFood - harvested);
+    res.foodAmount = remaining;
+    res.amount = remaining;
+    return harvested;
+  }
+
+  /**
+   * Fast spatial query for the nearest berry bush, optionally requiring available berries
+   */
+  public findNearestBerryBush(
+    fromX: number,
+    fromY: number,
+    mustHaveFood: boolean = true,
+    maxSearchDistance: number = 32
+  ): ResourceNode | null {
+    const minBx = Math.floor((fromX - maxSearchDistance) / this.bucketSize);
+    const maxBx = Math.floor((fromX + maxSearchDistance) / this.bucketSize);
+    const minBy = Math.floor((fromY - maxSearchDistance) / this.bucketSize);
+    const maxBy = Math.floor((fromY + maxSearchDistance) / this.bucketSize);
+
+    let nearest: ResourceNode | null = null;
+    let minDistanceSq = maxSearchDistance * maxSearchDistance;
+
+    for (let by = minBy; by <= maxBy; by++) {
+      for (let bx = minBx; bx <= maxBx; bx++) {
+        const bucket = this.buckets.get(`${bx}_${by}`);
+        if (!bucket) continue;
+
+        for (const id of bucket) {
+          const res = this.resources.get(id);
+          if (!res || res.type !== ResourceType.BERRY_BUSH) continue;
+          if (mustHaveFood && ((res.foodAmount ?? res.amount) <= 0)) continue;
+
+          const dx = res.x - fromX;
+          const dy = res.y - fromY;
+          const distSq = dx * dx + dy * dy;
+
+          if (distSq < minDistanceSq) {
+            minDistanceSq = distSq;
+            nearest = res;
+          }
+        }
+      }
+    }
+
+    return nearest;
   }
 
   /**
@@ -219,8 +365,13 @@ export class ResourceManager {
       }
 
       if (tile === TileType.FOREST) {
-        // 90% trees in forests
-        this.addResource(ResourceType.TREE, rx, ry, Math.floor(Math.random() * 3));
+        // Trees and berry bushes in forests
+        const rand = Math.random();
+        if (rand < 0.75) {
+          this.addResource(ResourceType.TREE, rx, ry, Math.floor(Math.random() * 3));
+        } else if (this.berryBushCount < FOOD_CONFIG.berryBush.maxGlobalBushes) {
+          this.addResource(ResourceType.BERRY_BUSH, rx, ry);
+        }
       } else if (tile === TileType.MOUNTAIN) {
         // 85% stone boulders in mountains
         this.addResource(ResourceType.STONE, rx, ry);
@@ -232,11 +383,24 @@ export class ResourceManager {
           this.addResource(ResourceType.STONE, rx, ry);
         }
       } else if (tile === TileType.LAND) {
-        // Plains: balanced
-        if (Math.random() < 0.65) {
+        // Plains: balanced trees, stone, and berry bushes
+        const rand = Math.random();
+        if (rand < 0.45) {
           this.addResource(ResourceType.TREE, rx, ry);
-        } else {
+        } else if (rand < 0.75) {
           this.addResource(ResourceType.STONE, rx, ry);
+        } else if (this.berryBushCount < FOOD_CONFIG.berryBush.maxGlobalBushes) {
+          this.addResource(ResourceType.BERRY_BUSH, rx, ry);
+        }
+      }
+    }
+
+    // Regenerate berries on existing bushes
+    for (const res of this.resources.values()) {
+      if (res.type === ResourceType.BERRY_BUSH && res.foodAmount !== undefined && res.maxFood !== undefined) {
+        if (res.foodAmount < res.maxFood) {
+          res.foodAmount = Math.min(res.maxFood, res.foodAmount + (res.regenerationRate ?? 0.015));
+          res.amount = res.foodAmount;
         }
       }
     }
@@ -247,5 +411,6 @@ export class ResourceManager {
     this.buckets.clear();
     this.treeCount = 0;
     this.stoneCount = 0;
+    this.berryBushCount = 0;
   }
 }
