@@ -6,6 +6,7 @@ import {
   KingdomEntity,
   HumanState,
   Animal,
+  DiplomaticPact,
 } from '../../game/types';
 import {
   X,
@@ -37,6 +38,8 @@ interface CivilizationInspectorProps {
   animal?: Animal | null;
   settlement?: SettlementEntity | null;
   kingdom?: KingdomEntity | null;
+  pacts?: DiplomaticPact[];
+  relations?: Array<{ name: string; value: number; reason: string }>;
   onClose: () => void;
   onCenterCamera?: (x: number, y: number) => void;
   onSlaughterAnimal?: (animalId: string) => void;
@@ -137,6 +140,8 @@ export const CivilizationInspector: React.FC<CivilizationInspectorProps> = ({
   animal,
   settlement,
   kingdom,
+  pacts = [],
+  relations = [],
   onClose,
   onCenterCamera,
   onSlaughterAnimal,
@@ -495,6 +500,45 @@ export const CivilizationInspector: React.FC<CivilizationInspectorProps> = ({
             <span className="font-mono font-bold text-slate-200">
               {building.occupants?.length ?? 0} / {building.maxOccupants}
             </span>
+          </div>
+        </>
+      )}
+
+      {/* KINGDOM INSPECTION */}
+      {kingdom && !human && !building && !animal && (
+        <>
+          <div className="flex items-center justify-between pb-3 border-b border-slate-700/70">
+            <div className="flex items-center gap-2.5">
+              <span className="w-8 h-8 rounded-xl border border-white/20" style={{ backgroundColor: kingdom.color }} />
+              <div>
+                <div className="text-[10px] uppercase font-bold tracking-wider text-amber-400">Государство</div>
+                <div className="text-sm font-bold">{kingdom.name}</div>
+              </div>
+            </div>
+            <button onClick={onClose} className="p-1 rounded-lg hover:bg-slate-800 text-slate-400" title="Закрыть панель"><X className="w-4 h-4" /></button>
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+            <div className="bg-slate-950/60 p-2 rounded-lg"><span className="block text-slate-500">Правитель</span><span>{kingdom.rulerName}</span></div>
+            <div className="bg-slate-950/60 p-2 rounded-lg"><span className="block text-slate-500">Эпоха</span><span>{kingdom.era}</span></div>
+            <div className="bg-slate-950/60 p-2 rounded-lg"><span className="block text-slate-500">Население</span><span>{kingdom.population}</span></div>
+            <div className="bg-slate-950/60 p-2 rounded-lg"><span className="block text-slate-500">Армия</span><span>{kingdom.militaryStrength}</span></div>
+          </div>
+          <div className="mt-3 pt-2 border-t border-slate-800 text-xs space-y-1.5">
+            <div className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Договоры и отношения</div>
+            {pacts.length ? pacts.map((pact) => {
+              const otherId = pact.kingdomAId === kingdom.id ? pact.kingdomBId : pact.kingdomAId;
+              const label = pact.type === 'ALLIANCE' ? 'Союз' : pact.type === 'TRADE' ? 'Торговля' : 'Ненападение';
+              return <div key={pact.id} className="flex justify-between bg-emerald-950/50 border border-emerald-900 rounded p-1.5"><span>{label}</span><span className="text-slate-400">{otherId}</span></div>;
+            }) : <div className="text-slate-500">Нет действующих договоров.</div>}
+            {kingdom.atWarWith.length > 0 && <div className="text-rose-300">⚔️ Активные войны: {kingdom.atWarWith.length}</div>}
+            {relations.length > 0 && <div className="pt-1 space-y-1">
+              {relations.map((relation) => (
+                <div key={relation.name} className="rounded bg-slate-950/60 border border-slate-800 px-1.5 py-1">
+                  <div className="flex justify-between gap-2"><span className="truncate">{relation.name}</span><span className={relation.value < 0 ? 'text-rose-300' : relation.value > 0 ? 'text-emerald-300' : 'text-slate-400'}>{relation.value > 0 ? '+' : ''}{relation.value}</span></div>
+                  <div className="text-[10px] text-slate-500">{relation.reason}</div>
+                </div>
+              ))}
+            </div>}
           </div>
         </>
       )}

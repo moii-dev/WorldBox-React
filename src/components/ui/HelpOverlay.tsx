@@ -69,7 +69,11 @@ export const HelpOverlay: React.FC<HelpOverlayProps> = ({ toasts = [] }) => {
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">Рука (панорама):</span>
-                <span className="font-mono text-slate-200">H / СКМ</span>
+                <span className="font-mono text-slate-200">Пробел / СКМ</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Создать человека:</span>
+                <span className="font-mono text-sky-400">H</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">Смена биома:</span>

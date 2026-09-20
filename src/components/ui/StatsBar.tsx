@@ -15,6 +15,14 @@ import {
   Calendar,
 } from 'lucide-react';
 
+const SEASON_LABELS = { SPRING: '🌱 Весна', SUMMER: '☀️ Лето', AUTUMN: '🍂 Осень', WINTER: '❄️ Зима' };
+const CRISIS_LABELS: Record<string, string> = { DROUGHT: 'Засуха', COLD_SNAP: 'Морозы', FLOOD: 'Наводнение', HURRICANE: 'Ураган', EPIDEMIC: 'Эпидемия' };
+const DEATH_LABELS: Record<string, string> = {
+  OLD_AGE: 'старость', STARVATION: 'голод', COMBAT: 'бой', PREDATOR: 'хищники', FIRE: 'огонь',
+  LIGHTNING: 'молния', METEOR: 'метеорит', EARTHQUAKE: 'землетрясение', GRENADE: 'взрыв',
+  DISEASE: 'болезнь', FLOOD: 'наводнение', HURRICANE: 'ураган', PLAYER_INTERVENTION: 'вмешательство',
+};
+
 interface StatsBarProps {
   stats: SimulationStats | null;
 }
@@ -36,6 +44,7 @@ export const StatsBar: React.FC<StatsBarProps> = ({ stats }) => {
   const fps = stats?.fps ?? 60;
   const tps = stats?.tps ?? 25;
   const biomes = stats?.biomes;
+  const report = stats?.latestPopulationReport;
 
   return (
     <div className="absolute top-4 left-4 z-20 flex flex-col gap-2 font-sans select-none">
@@ -49,6 +58,13 @@ export const StatsBar: React.FC<StatsBarProps> = ({ stats }) => {
           <Calendar className="w-3.5 h-3.5 text-amber-400" />
           <span className="text-xs font-mono font-bold">Год {gameYear}</span>
         </div>
+
+        {stats?.season && (
+          <div className="hidden sm:flex items-center gap-1 px-2 py-1 rounded-xl bg-sky-950/60 border border-sky-800/70 text-sky-200 text-xs font-medium">
+            {SEASON_LABELS[stats.season]}
+            {stats.activeCrisis && <span className="text-rose-300">• {CRISIS_LABELS[stats.activeCrisis] ?? stats.activeCrisis}</span>}
+          </div>
+        )}
 
         {/* Kingdoms */}
         <div className="flex items-center gap-1 px-2 py-1 rounded-xl bg-slate-800/70 border border-slate-700/50">
@@ -153,6 +169,25 @@ export const StatsBar: React.FC<StatsBarProps> = ({ stats }) => {
               <span>🏠 Всего построек</span>
               <span className="font-mono font-bold text-slate-300">{buildingsCount}</span>
             </div>
+            {report && (
+              <div className="pt-2 mt-2 border-t border-slate-800 space-y-1">
+                <div className="flex items-center justify-between text-slate-300">
+                  <span>Годовой баланс</span>
+                  <span className={(report.populationEnd - report.populationStart) >= 0 ? 'text-emerald-300 font-mono font-bold' : 'text-rose-300 font-mono font-bold'}>
+                    {(report.populationEnd - report.populationStart) >= 0 ? '+' : ''}{report.populationEnd - report.populationStart}
+                  </span>
+                </div>
+                <div className="flex justify-between text-emerald-300"><span>Рождений</span><span className="font-mono">+{report.births}</span></div>
+                {Object.entries(report.deaths).filter(([, count]) => count).map(([cause, count]) => (
+                  <div key={cause} className="flex justify-between text-rose-300">
+                    <span>− {DEATH_LABELS[cause] ?? cause}</span><span className="font-mono">{count}</span>
+                  </div>
+                ))}
+                {stats.dynamicPopulationCap !== undefined && (
+                  <div className="text-[10px] text-slate-500 pt-1">Умный лимит рождения: {Math.floor(stats.dynamicPopulationCap)}</div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -4,7 +4,8 @@ import { BuildingManager } from '../buildings/BuildingManager';
 import { EntityManager } from '../entities/EntityManager';
 import { HistoryManager } from '../history/HistoryManager';
 import { SIMULATION_CONFIG } from '../SimulationConfig';
-import { Profession } from '../types';
+import { HumanState, Profession } from '../types';
+import { Pathfinder } from '../pathfinding/Pathfinder';
 
 const PREFIXES = [
   'Дубовый', 'Каменный', 'Зеленый', 'Речной', 'Сосновый', 'Железный', 'Волчий', 'Глубокий',
@@ -384,6 +385,35 @@ export class SettlementManager {
             curMiners++;
           } else {
             h.profession = 'WORKER';
+          }
+        }
+      }
+
+      // A hungry civilian can move to a nearby settlement of the same kingdom that has food.
+      // The transfer happens only when a real route exists, so migrants remain visible on the map.
+      if (settlement.storage.food < 8 && settlement.population > 2 && Math.random() < 0.12) {
+        let refuge: Settlement | null = null;
+        let refugeDistance = Infinity;
+        for (const candidate of this.settlements.values()) {
+          if (candidate.id === settlement.id || candidate.kingdomId !== settlement.kingdomId || candidate.storage.food < 35) continue;
+          const distance = Math.hypot(candidate.x - settlement.x, candidate.y - settlement.y);
+          if (distance < refugeDistance) {
+            refuge = candidate;
+            refugeDistance = distance;
+          }
+        }
+
+        const migrant = members.find((human) => human.profession !== 'SOLDIER');
+        if (refuge && migrant) {
+          const path = Pathfinder.findPath(world, migrant.tileX, migrant.tileY, refuge.x, refuge.y, 120);
+          if (path) {
+            settlement.removeMember(migrant.id);
+            refuge.addMember(migrant.id);
+            migrant.settlementId = refuge.id;
+            migrant.targetX = refuge.x + 0.5;
+            migrant.targetY = refuge.y + 0.5;
+            migrant.path = path;
+            migrant.state = HumanState.WANDERING;
           }
         }
       }

@@ -204,7 +204,7 @@ export class FireSystem {
         for (const human of entityManager.humans.values()) {
           const distSq = (human.x - (fire.x + 0.5)) ** 2 + (human.y - (fire.y + 0.5)) ** 2;
           if (distSq < 1.2) {
-            entityManager.damageHuman(human.id, 12);
+            entityManager.damageHuman(human.id, 12, undefined, 'FIRE');
           }
         }
         // Animals

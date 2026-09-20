@@ -75,7 +75,7 @@ export class GodPowersManager {
       const dist = Math.hypot(human.x - x, human.y - y);
       if (dist <= 2.5) {
         const dmg = dist <= 1.0 ? 150 : Math.round(75 * (1 - dist / 2.5));
-        entityManager.damageHuman(human.id, dmg);
+        entityManager.damageHuman(human.id, dmg, undefined, 'LIGHTNING');
       }
     }
 
@@ -186,7 +186,7 @@ export class GodPowersManager {
       for (const human of entityManager.humans.values()) {
         const dist = Math.hypot(human.x - ix, human.y - iy);
         if (dist <= 5.0) {
-          const died = entityManager.damageHuman(human.id, 220);
+          const died = entityManager.damageHuman(human.id, 220, undefined, 'METEOR');
           // Push away
           if (!died && dist > 0.1) {
             human.x += ((human.x - ix) / dist) * 1.5;
@@ -268,7 +268,7 @@ export class GodPowersManager {
     for (const human of entityManager.humans.values()) {
       const dist = Math.hypot(human.x - centerX, human.y - centerY);
       if (dist <= 6.5) {
-        entityManager.damageHuman(human.id, 35);
+        entityManager.damageHuman(human.id, 35, undefined, 'EARTHQUAKE');
         human.hitFlashTimer = 10;
       }
     }
@@ -546,7 +546,7 @@ export class GodPowersManager {
       for (const human of entityManager.humans.values()) {
         const dist = Math.hypot(human.x - gx, human.y - gy);
         if (dist <= 3.0) {
-          entityManager.damageHuman(human.id, 120);
+          entityManager.damageHuman(human.id, 120, undefined, 'GRENADE');
         }
       }
 

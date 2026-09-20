@@ -8,6 +8,7 @@ import {
   Profession,
   WeaponType,
   ArmorType,
+  DeathCause,
 } from '../types';
 import { World } from '../world/World';
 import { ResourceManager } from '../resources/ResourceManager';
@@ -116,6 +117,7 @@ export class Human implements HumanEntity {
   public divineShieldTimer: number = 0;
   public warriorBoostTimer: number = 0;
   public frozenTimer: number = 0;
+  public deathCause: DeathCause | null = null;
 
   public colorTheme: {
     shirt: string;
@@ -224,7 +226,9 @@ export class Human implements HumanEntity {
     diplomacyManager: DiplomacyManager,
     entityManager: EntityManager,
     animalManager?: AnimalManager,
-    deltaTicks: number = 1
+    deltaTicks: number = 1,
+    runDeepAI: boolean = true,
+    hungerMultiplier: number = 1
   ): boolean {
     // Divine status effects timers
     const dtSeconds = deltaTicks * 0.04;
@@ -254,12 +258,13 @@ export class Human implements HumanEntity {
     if (this.age >= SIMULATION_CONFIG.maxAgeMin) {
       const mortalityChance = (this.age - SIMULATION_CONFIG.maxAgeMin) * 0.0003 * deltaTicks;
       if (Math.random() < mortalityChance) {
-        return false; // Died of old age
+        this.deathCause = 'OLD_AGE';
+        return false;
       }
     }
 
     // Hunger decay
-    this.hunger = Math.max(0, this.hunger - FOOD_CONFIG.hungerDecayPerTick * deltaTicks);
+    this.hunger = Math.max(0, this.hunger - FOOD_CONFIG.hungerDecayPerTick * hungerMultiplier * deltaTicks);
 
     // Starvation mechanics
     if (this.hunger <= FOOD_CONFIG.starvationDamageThreshold) {
@@ -269,7 +274,8 @@ export class Human implements HumanEntity {
         this.hitFlashTimer = 4;
       }
       if (this.health <= 0) {
-        return false; // Died of starvation!
+        this.deathCause = 'STARVATION';
+        return false;
       }
     } else {
       this.starvationTicks = 0;
@@ -347,6 +353,11 @@ export class Human implements HumanEntity {
           }
         }
       }
+    }
+
+    // Keep combat and movement responsive, but defer expensive target searches in crowded worlds.
+    if (!runDeepAI && [HumanState.IDLE, HumanState.SEARCHING_RESOURCE, HumanState.SEARCHING_FOOD].includes(this.state)) {
+      return true;
     }
 
     // 3. State Machine dispatch
@@ -815,7 +826,7 @@ export class Human implements HumanEntity {
     let closest: Human | null = null;
     let minDistSq = maxDistance * maxDistance;
 
-    for (const other of entityManager.humans.values()) {
+    for (const other of entityManager.getHumansNear(this.x, this.y, maxDistance)) {
       if (other.id === this.id || other.health <= 0) continue;
       if (!other.kingdomId || other.kingdomId === this.kingdomId) continue;
 

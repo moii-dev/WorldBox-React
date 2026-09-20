@@ -337,14 +337,14 @@ export class ResourceManager {
   /**
    * Natural gradual resource generation across land biomes
    */
-  public updateNaturalGrowth(world: World): void {
+  public updateNaturalGrowth(world: World, growthMultiplier: number = 1): void {
     if (world.totalLandTiles < 10) return;
 
     this.growthTimer++;
     if (this.growthTimer < 3) return;
     this.growthTimer = 0;
 
-    const attempts = Math.min(12, Math.ceil(world.totalLandTiles / 180));
+    const attempts = Math.max(1, Math.floor(Math.min(12, Math.ceil(world.totalLandTiles / 180)) * growthMultiplier));
 
     for (let i = 0; i < attempts; i++) {
       const rx = Math.floor(Math.random() * world.width);
@@ -399,7 +399,7 @@ export class ResourceManager {
     for (const res of this.resources.values()) {
       if (res.type === ResourceType.BERRY_BUSH && res.foodAmount !== undefined && res.maxFood !== undefined) {
         if (res.foodAmount < res.maxFood) {
-          res.foodAmount = Math.min(res.maxFood, res.foodAmount + (res.regenerationRate ?? 0.015));
+          res.foodAmount = Math.min(res.maxFood, res.foodAmount + (res.regenerationRate ?? 0.015) * growthMultiplier);
           res.amount = res.foodAmount;
         }
       }

@@ -155,6 +155,58 @@ export type FoodSourceType = 'BERRIES' | 'MEAT' | 'FARM_FOOD';
 
 export type DiplomaticStatus = 'ALLIED' | 'FRIENDLY' | 'NEUTRAL' | 'TENSE' | 'HOSTILE' | 'WAR';
 
+export type DeathCause =
+  | 'OLD_AGE'
+  | 'STARVATION'
+  | 'COMBAT'
+  | 'PREDATOR'
+  | 'FIRE'
+  | 'LIGHTNING'
+  | 'METEOR'
+  | 'EARTHQUAKE'
+  | 'GRENADE'
+  | 'DISEASE'
+  | 'FLOOD'
+  | 'HURRICANE'
+  | 'PLAYER_INTERVENTION';
+
+export type Season = 'SPRING' | 'SUMMER' | 'AUTUMN' | 'WINTER';
+export type ClimateCrisisType = 'DROUGHT' | 'COLD_SNAP' | 'FLOOD' | 'HURRICANE' | 'EPIDEMIC';
+export type DiplomaticPactType = 'TRADE' | 'NON_AGGRESSION' | 'ALLIANCE';
+
+export interface PopulationReport {
+  year: number;
+  births: number;
+  deaths: Partial<Record<DeathCause, number>>;
+  populationStart: number;
+  populationEnd: number;
+}
+
+export interface ClimateCrisis {
+  id: string;
+  type: ClimateCrisisType;
+  x: number;
+  y: number;
+  radius: number;
+  remainingTicks: number;
+  durationTicks: number;
+}
+
+export interface ClimateState {
+  season: Season;
+  seasonProgress: number;
+  activeCrisis: ClimateCrisis | null;
+}
+
+export interface DiplomaticPact {
+  id: string;
+  type: DiplomaticPactType;
+  kingdomAId: string;
+  kingdomBId: string;
+  startYear: number;
+  expiresYear: number;
+}
+
 export type ToolType =
   | 'land'
   | 'forest'
@@ -507,6 +559,10 @@ export interface SimulationStats {
   fps: number;
   tps: number;
   biomes: BiomeBreakdown;
+  season?: Season;
+  activeCrisis?: ClimateCrisisType | null;
+  dynamicPopulationCap?: number;
+  latestPopulationReport?: PopulationReport | null;
 }
 
 export interface WorldSaveData {
@@ -531,6 +587,9 @@ export interface WorldSaveData {
   resources: any[];
   ships?: any[];
   events: WorldEvent[];
+  populationReports?: PopulationReport[];
+  climate?: ClimateState;
+  diplomaticPacts?: DiplomaticPact[];
   stats?: Partial<SimulationStats>;
 }
 

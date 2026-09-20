@@ -211,7 +211,7 @@ export class SaveManager {
     const dateStr = `${now.toLocaleDateString()} ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
 
     return {
-      version: 2,
+      version: 3,
       name,
       date: dateStr,
       gameYear: sim.gameYear,
@@ -232,6 +232,9 @@ export class SaveManager {
       resources,
       ships,
       events: sim.historyManager.getEvents(),
+      populationReports: sim.populationManager.getReports(sim.entityManager.population),
+      climate: sim.climateManager.getState(),
+      diplomaticPacts: Array.from(sim.diplomacyManager.pacts.values()),
     };
   }
 
@@ -286,6 +289,7 @@ export class SaveManager {
       sim.buildingManager.buildings.clear();
       sim.settlementManager.settlements.clear();
       sim.kingdomManager.kingdoms.clear();
+      sim.diplomacyManager.clear();
       sim.animalManager.animals.clear();
       sim.animalManager.carcasses.clear();
       sim.resourceManager.resources.clear();
@@ -425,6 +429,14 @@ export class SaveManager {
       if (data.events && Array.isArray(data.events)) {
         sim.historyManager.setEvents(data.events);
       }
+
+      sim.populationManager.setReports(
+        data.populationReports,
+        1 + Math.floor((data.tickCount ?? 0) / 100),
+        sim.entityManager.population
+      );
+      sim.climateManager.setState(data.climate);
+      sim.diplomacyManager.setPacts(data.diplomaticPacts);
 
       sim.tickCount = data.tickCount ?? ((data.gameYear || 1) - 1) * 750;
 

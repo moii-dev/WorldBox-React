@@ -16,6 +16,7 @@ import { InspectorPanel } from './ui/InspectorPanel';
 import { StatsBar } from './ui/StatsBar';
 import { CivilizationInspector } from './ui/CivilizationInspector';
 import { SaveLoadModal } from './ui/SaveLoadModal';
+import { HelpOverlay } from './ui/HelpOverlay';
 import { NewWorldSettings, WorldSize } from './ui/MainMenu';
 
 interface Toast {
@@ -470,6 +471,30 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ settings }) => {
         animal={selectedAnimal}
         settlement={selectedSettlement}
         kingdom={selectedKingdom}
+        pacts={selectedKingdom ? (engineRef.current?.simulation.diplomacyManager.getPactsForKingdom(selectedKingdom.id) ?? []) : []}
+        relations={selectedKingdom
+          ? (Object.entries(selectedKingdom.relations) as Array<[string, number]>)
+              .map(([otherId, value]) => {
+                const other = engineRef.current?.simulation.kingdomManager.getKingdom(otherId);
+                const pact = engineRef.current?.simulation.diplomacyManager.getPact(selectedKingdom.id, otherId);
+                return {
+                  name: other?.name ?? 'Неизвестное государство',
+                  value: Math.round(value),
+                  reason: pact?.type === 'ALLIANCE'
+                    ? 'Союз поддерживает доверие'
+                    : pact?.type === 'TRADE'
+                    ? 'Торговля стабилизирует отношения'
+                    : pact?.type === 'NON_AGGRESSION'
+                    ? 'Пакт временно исключает войну'
+                    : value <= -35
+                    ? 'Территориальная напряжённость'
+                    : value >= 35
+                    ? 'Стабильные отношения'
+                    : 'Нейтральные отношения',
+                };
+              })
+              .sort((a, b) => a.value - b.value)
+          : []}
         onClose={handleCloseInspector}
         onCenterCamera={handleCenterCamera}
         onSlaughterAnimal={handleSlaughterAnimal}
@@ -528,6 +553,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ settings }) => {
         onWorldLoaded={() => undefined}
         onToast={addToast}
       />
+
+      <HelpOverlay toasts={toasts} />
 
       {/* Floating Notifications / Toasts */}
       <div className="absolute bottom-24 right-4 z-40 flex flex-col gap-2 pointer-events-none">

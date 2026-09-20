@@ -424,7 +424,7 @@ export class Animal implements AnimalEntity {
       // Attack target human
       const human = entityManager.getHuman(this.targetEntityId);
       if (human && human.health > 0) {
-        if (entityManager.damageHuman(human.id, this.damage, this.id)) {
+        if (entityManager.damageHuman(human.id, this.damage, this.id, 'PREDATOR')) {
           this.targetEntityId = null;
           this.state = 'IDLE';
           return;

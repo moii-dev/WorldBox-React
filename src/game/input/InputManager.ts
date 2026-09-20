@@ -590,7 +590,7 @@ export class InputManager {
       const h = humans[i];
       if (Math.hypot(h.x - worldX, h.y - worldY) <= r) {
         if (this.undoManager) this.undoManager.recordHumanRemoved(h);
-        this.entityManager.removeHuman(h.id);
+        this.entityManager.killHuman(h.id, 'PLAYER_INTERVENTION');
       }
     }
 

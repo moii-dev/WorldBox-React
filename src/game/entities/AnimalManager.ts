@@ -27,6 +27,25 @@ export class AnimalManager {
     return `${bx}_${by}`;
   }
 
+  private nearbyAnimals(x: number, y: number, distance: number): Animal[] {
+    const result: Animal[] = [];
+    const minX = Math.floor((x - distance) / this.bucketSize);
+    const maxX = Math.floor((x + distance) / this.bucketSize);
+    const minY = Math.floor((y - distance) / this.bucketSize);
+    const maxY = Math.floor((y + distance) / this.bucketSize);
+    for (let bx = minX; bx <= maxX; bx++) {
+      for (let by = minY; by <= maxY; by++) {
+        const bucket = this.buckets.get(`${bx}_${by}`);
+        if (!bucket) continue;
+        for (const id of bucket) {
+          const animal = this.animals.get(id);
+          if (animal) result.push(animal);
+        }
+      }
+    }
+    return result;
+  }
+
   public addAnimal(
     species: AnimalSpecies,
     x: number,
@@ -220,7 +239,7 @@ export class AnimalManager {
     const spec = FOOD_CONFIG.species[animal.species];
     const maxDistSq = spec.matingDistance * spec.matingDistance;
 
-    for (const other of this.animals.values()) {
+    for (const other of this.nearbyAnimals(animal.x, animal.y, spec.matingDistance)) {
       if (
         other.id !== animal.id &&
         other.species === animal.species &&
@@ -243,7 +262,7 @@ export class AnimalManager {
     let closest: Animal | null = null;
     let minDistSq = radius * radius;
 
-    for (const animal of this.animals.values()) {
+    for (const animal of this.nearbyAnimals(worldX, worldY, radius)) {
       const distSq = (animal.x - worldX) ** 2 + (animal.y - worldY) ** 2;
       if (distSq < minDistSq) {
         minDistSq = distSq;
@@ -262,7 +281,7 @@ export class AnimalManager {
     let nearest: Animal | null = null;
     let minDistSq = maxDistance * maxDistance;
 
-    for (const animal of this.animals.values()) {
+    for (const animal of this.nearbyAnimals(fromX, fromY, maxDistance)) {
       if (filterSpecies && animal.species !== filterSpecies) continue;
 
       const distSq = (animal.x - fromX) ** 2 + (animal.y - fromY) ** 2;
@@ -278,7 +297,7 @@ export class AnimalManager {
     let nearest: Animal | null = null;
     let minDistSq = maxDistance * maxDistance;
 
-    for (const animal of this.animals.values()) {
+    for (const animal of this.nearbyAnimals(fromX, fromY, maxDistance)) {
       if (animal.species === 'WOLF') continue; // Wolves don't hunt wolves
 
       const distSq = (animal.x - fromX) ** 2 + (animal.y - fromY) ** 2;

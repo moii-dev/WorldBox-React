@@ -226,6 +226,7 @@ export class GameEngine {
     WorldGenerator.generate(this.world, this.resourceManager, preset, seed);
     this.simulation.animalManager.spawnInitialEcosystem(this.world);
     this.spawnInitialPioneers();
+    this.simulation.resetPopulationCensus();
     this.simulation.emitStats();
     this.emitHistoryState();
   }

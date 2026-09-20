@@ -16,6 +16,8 @@ import { SoundSynthesizer } from '../audio/SoundSynthesizer';
 import { Era, SimulationStats } from '../types';
 import { EventEmitter } from '../utils/EventEmitter';
 import { SIMULATION_CONFIG } from '../SimulationConfig';
+import { ClimateManager } from '../climate/ClimateManager';
+import { PopulationManager } from '../population/PopulationManager';
 
 export class Simulation {
   public world: World;
@@ -32,6 +34,8 @@ export class Simulation {
   public roadSystem: RoadSystem;
   public shipManager: ShipManager;
   public tradeManager: TradeManager;
+  public climateManager: ClimateManager;
+  public populationManager: PopulationManager;
   public events: EventEmitter;
 
   public speed: number = 1; // 0 = pause, 1 = 1x, 2 = 2x, 4 = 4x
@@ -75,6 +79,11 @@ export class Simulation {
     this.roadSystem = new RoadSystem(world.width, world.height);
     this.shipManager = new ShipManager();
     this.tradeManager = new TradeManager();
+    this.climateManager = new ClimateManager();
+    this.populationManager = new PopulationManager();
+    this.populationManager.beginYear(1, this.entityManager.population);
+    this.entityManager.onHumanBirth(() => this.populationManager.recordBirth());
+    this.entityManager.onHumanDeath((cause) => this.populationManager.recordDeath(cause));
 
     this.historyManager.logEvent(
       1,
@@ -110,6 +119,15 @@ export class Simulation {
       this.fpsCounter = 0;
       this.tpsCounter = 0;
       this.fpsTimer = 0;
+    }
+
+    if (!this.isPaused && this.speed > 0) {
+      this.entityManager.dynamicPopulationCap = this.populationManager.updateGovernor(
+        deltaSeconds,
+        this.currentTps,
+        this.entityManager.population,
+        this.entityManager.maxPopulation
+      );
     }
 
     // Always advance visual VFX & floating particles even if paused
@@ -150,12 +168,22 @@ export class Simulation {
 
   private step(): void {
     const gameYear = 1 + Math.floor(this.tickCount / SIMULATION_CONFIG.ticksPerGameYear);
+    this.populationManager.beginYear(gameYear, this.entityManager.population);
+
+    this.climateManager.update(
+      this.tickCount,
+      this.world,
+      this.entityManager,
+      this.buildingManager,
+      this.historyManager,
+      gameYear
+    );
 
     // 1. Natural resources growth / respawn
-    this.resourceManager.updateNaturalGrowth(this.world);
+    this.resourceManager.updateNaturalGrowth(this.world, this.climateManager.resourceGrowthMultiplier);
 
     // 2. Agricultural crops growth on farms
-    this.buildingManager.updateFarms(0.004);
+    this.buildingManager.updateFarms(0.004 * this.climateManager.farmGrowthMultiplier);
 
     // 3. Animal ecosystem updates (behavior, predators, hunting, mating)
     this.animalManager.update(this.world, this.entityManager, this.buildingManager, 1);
@@ -169,7 +197,8 @@ export class Simulation {
       this.kingdomManager,
       this.diplomacyManager,
       this.animalManager,
-      1
+      1,
+      this.climateManager.hungerMultiplier
     );
 
     // 5. Fire simulation, burning damage & divine status effects
@@ -360,6 +389,10 @@ export class Simulation {
       tickCount: this.tickCount,
 
       biomes: { ...this.world.biomes },
+      season: this.climateManager.state.season,
+      activeCrisis: this.climateManager.state.activeCrisis?.type ?? null,
+      dynamicPopulationCap: this.entityManager.dynamicPopulationCap,
+      latestPopulationReport: this.populationManager.getLatestReport(this.entityManager.population),
     };
 
     this.events.emit('statsUpdated', stats);
@@ -596,7 +629,13 @@ export class Simulation {
     this.roadSystem.wear.fill(0);
     this.shipManager.ships.clear();
     this.tradeManager.caravans.clear();
+    this.climateManager.clear();
+    this.populationManager.reset();
     this.tickCount = 0;
     this.accumulator = 0;
+  }
+
+  public resetPopulationCensus(): void {
+    this.populationManager.reset(this.entityManager.population);
   }
 }
