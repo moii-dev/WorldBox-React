@@ -469,6 +469,8 @@ export class InputManager {
 
   private handleSingleSelect(worldX: number, worldY: number): void {
     // 1. Check Human
+    // Selection also opens the contextual details panel; no separate inspect tool is needed.
+    this.handleInspect(worldX, worldY);
     const human = this.entityManager.findHumanAt(worldX, worldY, 1.4);
     if (human) {
       this.entityManager.selectHuman(human.id);

@@ -11,6 +11,7 @@ import { AnimalManager } from './AnimalManager';
 export class EntityManager {
   public humans: Map<string, Human> = new Map();
   public selectedHumanId: string | null = null;
+  public maxPopulation: number = Number.POSITIVE_INFINITY;
 
   constructor() {}
 
@@ -58,6 +59,9 @@ export class EntityManager {
     age?: number,
     parents?: string[]
   ): Human | null {
+    if (this.population >= this.maxPopulation) {
+      return null;
+    }
     // Only allow placing human on walkable land
     if (!world.isWalkable(tileX, tileY)) {
       return null;

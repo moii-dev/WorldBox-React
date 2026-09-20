@@ -106,8 +106,7 @@ export const MiniMap: React.FC<MiniMapProps> = ({ engine, showPoliticalMap }) =>
     ctx.putImageData(imgData, 0, 0);
 
     // 2. Draw settlements as small bright markers
-    const settlements = engine.simulation.settlementManager.getSettlements();
-    for (const s of settlements) {
+    for (const s of engine.simulation.settlementManager.settlements.values()) {
       const smx = Math.floor((s.centerX / world.width) * mapW);
       const smy = Math.floor((s.centerY / world.height) * mapH);
       ctx.fillStyle = '#facc15';
@@ -220,7 +219,7 @@ export const MiniMap: React.FC<MiniMapProps> = ({ engine, showPoliticalMap }) =>
             title="Кликните или потяните для перемещения камеры"
           />
           <div className="w-full flex justify-between items-center px-1 pt-1 text-[10px] text-slate-400">
-            <span>256 × 256</span>
+            <span>{engine ? `${engine.world.width} × ${engine.world.height}` : '—'}</span>
             <span className="text-sky-400">Перемещение</span>
           </div>
         </div>

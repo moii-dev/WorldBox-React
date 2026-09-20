@@ -1,1 +1,35 @@
 @import "tailwindcss";
+
+.menu-ocean {
+  position: absolute;
+  inset: -20%;
+  background:
+    radial-gradient(circle at 18% 32%, rgba(47, 180, 195, 0.34) 0 2%, transparent 2.3%),
+    radial-gradient(circle at 72% 24%, rgba(16, 138, 166, 0.36) 0 2.5%, transparent 2.8%),
+    radial-gradient(circle at 83% 75%, rgba(44, 178, 190, 0.26) 0 2%, transparent 2.3%),
+    linear-gradient(135deg, #062033, #0a4964 48%, #071b2b);
+  background-size: 92px 92px, 124px 124px, 110px 110px, auto;
+  transform: rotate(-5deg) scale(1.12);
+}
+
+.menu-island {
+  position: absolute;
+  width: 27rem;
+  height: 18rem;
+  border: 16px solid rgba(42, 190, 186, 0.28);
+  border-radius: 44% 56% 39% 61% / 51% 40% 60% 49%;
+  background:
+    radial-gradient(ellipse at 46% 47%, #a2c959 0 19%, #4f994e 20% 40%, #1d6444 41% 56%, transparent 57%),
+    radial-gradient(ellipse at 55% 57%, #edcf78 0 31%, transparent 32%);
+  box-shadow: 0 0 0 12px rgba(8, 94, 127, 0.5), 0 30px 60px rgba(0, 0, 0, 0.3);
+  filter: saturate(1.1);
+}
+
+.menu-island-a { top: -5rem; left: -7rem; transform: rotate(-17deg) scale(1.1); }
+.menu-island-b { right: -10rem; bottom: -5rem; transform: rotate(26deg) scale(1.05); }
+.menu-island-c { right: 6%; top: 10%; transform: rotate(14deg) scale(0.48); opacity: 0.82; }
+
+.menu-logo {
+  color: #f6c64e;
+  text-shadow: 0 3px 0 #875817, 0 6px 0 #35200b, 0 8px 18px rgba(0, 0, 0, 0.55);
+}

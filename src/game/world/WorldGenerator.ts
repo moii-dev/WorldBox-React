@@ -97,17 +97,19 @@ export class WorldGenerator {
 
     // Populate initial resources naturally for generated map
     if (resourceManager) {
-      this.populateResources(world, resourceManager);
+      this.populateResources(world, resourceManager, seed);
     }
   }
 
-  private static populateResources(world: World, resourceManager: ResourceManager): void {
+  private static populateResources(world: World, resourceManager: ResourceManager, seed: number): void {
     const w = world.width;
     const h = world.height;
+    const resourceNoise = new Noise(seed + 7_919);
 
     for (let y = 2; y < h - 2; y += 2) {
       for (let x = 2; x < w - 2; x += 2) {
         const tile = world.getTile(x, y);
+        const random = (resourceNoise.noise2D(x * 13.7, y * 17.3) + 1) / 2;
 
         // Don't spawn on water or beaches
         if (tile === TileType.WATER || tile === TileType.SHALLOW_WATER || tile === TileType.SAND) {
@@ -116,34 +118,31 @@ export class WorldGenerator {
 
         // Forest: very high density of trees, plus berry bushes
         if (tile === TileType.FOREST) {
-          const rand = Math.random();
-          if (rand < 0.25) {
+          if (random < 0.25) {
             resourceManager.addResource(ResourceType.TREE, x, y);
-          } else if (rand < 0.28) {
+          } else if (random < 0.28) {
             resourceManager.addResource(ResourceType.BERRY_BUSH, x, y);
           }
         }
         // Plains: balanced trees, occasional stone, and berry bushes
         else if (tile === TileType.LAND) {
-          const rand = Math.random();
-          if (rand < 0.07) {
+          if (random < 0.07) {
             resourceManager.addResource(ResourceType.TREE, x, y);
-          } else if (rand < 0.1) {
+          } else if (random < 0.1) {
             resourceManager.addResource(ResourceType.STONE, x, y);
-          } else if (rand < 0.13) {
+          } else if (random < 0.13) {
             resourceManager.addResource(ResourceType.BERRY_BUSH, x, y);
           }
         }
         // Mountain: high density of stone boulders
-        else if (tile === TileType.MOUNTAIN && Math.random() < 0.22) {
+        else if (tile === TileType.MOUNTAIN && random < 0.22) {
           resourceManager.addResource(ResourceType.STONE, x, y);
         }
         // Snow: occasional pine or frosted rock
         else if (tile === TileType.SNOW) {
-          const rand = Math.random();
-          if (rand < 0.05) {
+          if (random < 0.05) {
             resourceManager.addResource(ResourceType.TREE, x, y); // Snowy pine
-          } else if (rand < 0.08) {
+          } else if (random < 0.08) {
             resourceManager.addResource(ResourceType.STONE, x, y);
           }
         }

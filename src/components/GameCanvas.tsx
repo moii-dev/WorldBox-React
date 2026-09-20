@@ -6,7 +6,6 @@ import {
   BuildingEntity,
   SettlementEntity,
   KingdomEntity,
-  WorldEvent,
   WorldGenPreset,
   Animal,
 } from '../game/types';
@@ -16,16 +15,25 @@ import { MiniMap } from './ui/MiniMap';
 import { InspectorPanel } from './ui/InspectorPanel';
 import { StatsBar } from './ui/StatsBar';
 import { CivilizationInspector } from './ui/CivilizationInspector';
-import { EventLog } from './ui/EventLog';
-import { HelpOverlay } from './ui/HelpOverlay';
 import { SaveLoadModal } from './ui/SaveLoadModal';
+import { NewWorldSettings, WorldSize } from './ui/MainMenu';
 
 interface Toast {
   id: number;
   message: string;
 }
 
-export const GameCanvas: React.FC = () => {
+interface GameCanvasProps {
+  settings: NewWorldSettings;
+}
+
+const worldDimensions: Record<WorldSize, number> = {
+  small: 128,
+  medium: 256,
+  large: 384,
+};
+
+export const GameCanvas: React.FC<GameCanvasProps> = ({ settings }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const engineRef = useRef<GameEngine | null>(null);
@@ -51,7 +59,6 @@ export const GameCanvas: React.FC = () => {
   const [selectedSettlement, setSelectedSettlement] = useState<SettlementEntity | null>(null);
   const [selectedKingdom, setSelectedKingdom] = useState<KingdomEntity | null>(null);
 
-  const [worldEvents, setWorldEvents] = useState<WorldEvent[]>([]);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [isSaveModalOpen, setIsSaveModalOpen] = useState<boolean>(false);
 
@@ -75,11 +82,13 @@ export const GameCanvas: React.FC = () => {
     canvas.height = height;
 
     // Instantiate game engine
-    const engine = new GameEngine(canvas);
+    const engine = new GameEngine(canvas, {
+      worldName: settings.name,
+      worldSize: worldDimensions[settings.size],
+      maxPeople: settings.maxPeople,
+      seed: settings.seed,
+    });
     engineRef.current = engine;
-
-    // Initial events
-    setWorldEvents([...engine.simulation.historyManager.eventsList]);
 
     // Subscribe to engine events
     const unsubStats = engine.events.on('statsUpdated', (newStats: SimulationStats) => {
@@ -150,10 +159,6 @@ export const GameCanvas: React.FC = () => {
 
     const unsubPoliticalMap = engine.events.on('politicalMapToggled', (active: boolean) => {
       setShowPoliticalMap(active);
-    });
-
-    const unsubWorldEvent = engine.events.on('worldEventLogged', () => {
-      setWorldEvents([...engine.simulation.historyManager.eventsList]);
     });
 
     const unsubPlacementFailed = engine.events.on(
@@ -304,12 +309,11 @@ export const GameCanvas: React.FC = () => {
       unsubBuildingSelected();
       unsubAnimalSelected();
       unsubPoliticalMap();
-      unsubWorldEvent();
       unsubPlacementFailed();
       engine.destroy();
       engineRef.current = null;
     };
-  }, [addToast]);
+  }, [addToast, settings]);
 
   // UI Handlers
   const handleSelectTool = (toolId: string) => {
@@ -453,9 +457,6 @@ export const GameCanvas: React.FC = () => {
       {/* Top Stats and Demographics Bar */}
       <StatsBar stats={stats} />
 
-      {/* World Chronicle / Event Log */}
-      <EventLog events={worldEvents} />
-
       {/* Mini Map (Collapsible, Interactive) */}
       <MiniMap
         engine={engineRef.current}
@@ -524,16 +525,9 @@ export const GameCanvas: React.FC = () => {
         isOpen={isSaveModalOpen}
         onClose={() => setIsSaveModalOpen(false)}
         engine={engineRef.current}
-        onWorldLoaded={() => {
-          if (engineRef.current) {
-            setWorldEvents([...engineRef.current.simulation.historyManager.eventsList]);
-          }
-        }}
+        onWorldLoaded={() => undefined}
         onToast={addToast}
       />
-
-      {/* Controls & Interaction Guide Overlay */}
-      <HelpOverlay />
 
       {/* Floating Notifications / Toasts */}
       <div className="absolute bottom-24 right-4 z-40 flex flex-col gap-2 pointer-events-none">

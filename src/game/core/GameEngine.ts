@@ -28,14 +28,24 @@ export class GameEngine {
   private lastFrameTime: number = performance.now();
   private animFrameId: number | null = null;
 
-  constructor(canvas: HTMLCanvasElement) {
-    this.events = new EventEmitter();
+  public readonly worldName: string;
+  public readonly seed: number;
 
-    this.world = new World();
+  constructor(
+    canvas: HTMLCanvasElement,
+    options: { worldName?: string; worldSize?: number; maxPeople?: number; seed?: number } = {}
+  ) {
+    this.events = new EventEmitter();
+    this.worldName = options.worldName || 'Новый мир';
+    this.seed = options.seed ?? Math.floor(Math.random() * 1_000_000_000);
+
+    const worldSize = Math.max(64, Math.min(512, options.worldSize ?? 256));
+    this.world = new World({ worldWidth: worldSize, worldHeight: worldSize });
     // Start camera in middle of world
-    this.camera = new Camera(128, 128, 16, 4, 48);
+    this.camera = new Camera(this.world.width / 2, this.world.height / 2, 16, 4, 48);
     this.resourceManager = new ResourceManager();
     this.entityManager = new EntityManager();
+    this.entityManager.maxPopulation = Math.max(6, options.maxPeople ?? 500);
     this.undoManager = new UndoManager();
     this.biomeSystem = new BiomeSystem();
 
@@ -80,7 +90,7 @@ export class GameEngine {
     );
 
     this.setupListeners();
-    this.generateWorld('continents');
+    this.generateWorld('continents', this.seed);
 
     this.startLoop();
   }
@@ -140,8 +150,10 @@ export class GameEngine {
 
   public spawnInitialPioneers(): void {
     let spawned = 0;
-    for (let y = 110; y < 150 && spawned < 6; y += 2) {
-      for (let x = 110; x < 150 && spawned < 6; x += 2) {
+    const centerX = Math.floor(this.world.width / 2);
+    const centerY = Math.floor(this.world.height / 2);
+    for (let y = centerY - 20; y < centerY + 20 && spawned < 6; y += 2) {
+      for (let x = centerX - 20; x < centerX + 20 && spawned < 6; x += 2) {
         if (this.world.isWalkable(x, y) && this.world.getBorderMask(x, y) === 0) {
           const sex = spawned % 2 === 0 ? 'MALE' : 'FEMALE';
           this.entityManager.addHuman(x, y, this.world, sex, 20 + (spawned % 8));
@@ -208,10 +220,10 @@ export class GameEngine {
     });
   }
 
-  public generateWorld(preset: WorldGenPreset = 'continents'): void {
+  public generateWorld(preset: WorldGenPreset = 'continents', seed: number = Math.floor(Math.random() * 1_000_000_000)): void {
     this.simulation.clear();
     this.undoManager.clear();
-    WorldGenerator.generate(this.world, this.resourceManager, preset);
+    WorldGenerator.generate(this.world, this.resourceManager, preset, seed);
     this.simulation.animalManager.spawnInitialEcosystem(this.world);
     this.spawnInitialPioneers();
     this.simulation.emitStats();
@@ -304,7 +316,7 @@ export class GameEngine {
   }
 
   public saveWorldToSlot(slot: number, name?: string): boolean {
-    const ok = SaveManager.saveToSlot(slot, this.simulation, name);
+    const ok = SaveManager.saveToSlot(slot, this.simulation, name || this.worldName);
     if (ok) {
       this.events.emit('worldSaved', { slot });
     }
