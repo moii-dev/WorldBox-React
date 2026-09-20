@@ -868,13 +868,12 @@ export class Human implements HumanEntity {
             ? SIMULATION_CONFIG.soldierAttackCooldownTicks
             : SIMULATION_CONFIG.civilianAttackCooldownTicks;
 
-        const died = enemy.takeDamage(dmg, this.id);
+        const died = entityManager.damageHuman(enemy.id, dmg, this.id);
         if (died) {
           this.kills++;
           if (enemy.kingdomId) {
             diplomacyManager.recordCasualty(enemy.kingdomId);
           }
-          entityManager.removeHuman(enemy.id);
           this.targetEnemyId = null;
           this.state = HumanState.IDLE;
         }

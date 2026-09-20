@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Dices, Play } from 'lucide-react';
+import worldMenuBackground from '../../assets/world-menu-background.png';
 
 export type WorldSize = 'small' | 'medium' | 'large';
 
@@ -46,10 +47,13 @@ export const MainMenu: React.FC<MainMenuProps> = ({ onPlay }) => {
 
   return (
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#071b2b] px-4 py-8 font-sans text-white">
-      <div className="menu-ocean" aria-hidden="true" />
-      <div className="menu-island menu-island-a" aria-hidden="true" />
-      <div className="menu-island menu-island-b" aria-hidden="true" />
-      <div className="menu-island menu-island-c" aria-hidden="true" />
+      <div
+        className="menu-scene"
+        style={{ backgroundImage: `url(${worldMenuBackground})` }}
+        aria-hidden="true"
+      />
+      <div className="menu-scene-vignette" aria-hidden="true" />
+      <div className="menu-scene-glow" aria-hidden="true" />
 
       <section className="relative z-10 w-full max-w-[590px] rounded-[26px] border border-slate-500/50 bg-slate-950/85 p-5 shadow-2xl shadow-black/60 backdrop-blur-md sm:p-7">
         <div className="mb-7 text-center">

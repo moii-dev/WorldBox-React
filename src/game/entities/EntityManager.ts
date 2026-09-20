@@ -142,11 +142,27 @@ export class EntityManager {
     return closest;
   }
 
-  public killHuman(id: string, world?: World): void {
+  public killHuman(id: string, world?: World): boolean {
     const human = this.humans.get(id);
-    if (!human) return;
+    if (!human) return false;
     human.health = 0;
-    this.removeHuman(id);
+    return this.removeHuman(id);
+  }
+
+  /**
+   * Apply damage and immediately remove a human who dies.
+   * Keeping this in the manager prevents zero-health humans from staying in the world
+   * after damage from powers, fire, or animals.
+   */
+  public damageHuman(id: string, amount: number, attackerId?: string): boolean {
+    const human = this.humans.get(id);
+    if (!human) return false;
+
+    const died = human.takeDamage(amount, attackerId);
+    if (died) {
+      this.killHuman(id);
+    }
+    return died;
   }
 
   public update(
