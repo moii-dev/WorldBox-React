@@ -702,11 +702,14 @@ export class InputManager {
     if (this.resourceManager?.hasResourceAt(tileX, tileY)) return;
 
     if (this.activeTool === 'tree') {
-      this.resourceManager?.addTree(tileX, tileY, 30);
+      // Use the same finite yield as natural trees, so one completed logging job
+      // clears the visible tree instead of leaving an apparently endless node.
+      this.resourceManager?.addTree(tileX, tileY);
     } else if (this.activeTool === 'berry_bush') {
       this.resourceManager?.addBerryBush(tileX, tileY, 5);
     } else if (this.activeTool === 'stone') {
-      this.resourceManager?.addStone(tileX, tileY, 50);
+      // Match natural deposits: the visible boulder disappears when mined out.
+      this.resourceManager?.addStone(tileX, tileY);
     }
   }
 

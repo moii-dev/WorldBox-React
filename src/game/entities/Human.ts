@@ -1323,7 +1323,16 @@ export class Human implements HumanEntity {
         ? ResourceType.STONE
         : null;
 
-    const nearestRes = resourceManager.findNearestResource(curX, curY, typeFilter, 24);
+    // A general worker must not mistake a berry bush for wood or stone.
+    // Pick whichever of the two building materials is actually closer.
+    const nearestRes = typeFilter
+      ? resourceManager.findNearestResource(curX, curY, typeFilter, 24)
+      : [
+          resourceManager.findNearestResource(curX, curY, ResourceType.TREE, 24),
+          resourceManager.findNearestResource(curX, curY, ResourceType.STONE, 24),
+        ]
+          .filter((resource): resource is NonNullable<typeof resource> => resource !== null)
+          .sort((a, b) => Math.hypot(a.x - curX, a.y - curY) - Math.hypot(b.x - curX, b.y - curY))[0] ?? null;
 
     if (nearestRes) {
       const path = Pathfinder.findPath(world, curX, curY, nearestRes.x, nearestRes.y, 100);
@@ -1417,7 +1426,20 @@ export class Human implements HumanEntity {
     this.gatherProgress = Math.min(1, 1 - this.stateTimer / 2.5);
 
     if (this.stateTimer <= 0) {
-      const { harvested } = resourceManager.harvestResource(this.targetResourceId, 1);
+      if (res.type !== ResourceType.TREE && res.type !== ResourceType.STONE) {
+        this.targetResourceId = null;
+        this.state = HumanState.IDLE;
+        return;
+      }
+
+      // A work cycle clears a normal tree/ore node completely (5 wood / 8 stone).
+      // Larger nodes placed by the player are still visibly finite and are exhausted
+      // in several full loads instead of looking unchanged after every swing.
+      const loadSize = res.type === ResourceType.TREE ? 5 : 8;
+      const { harvested } = resourceManager.harvestResource(
+        this.targetResourceId,
+        Math.min(loadSize, res.amount)
+      );
       if (harvested > 0) {
         if (res.type === ResourceType.TREE) {
           this.inventory.wood += harvested;
