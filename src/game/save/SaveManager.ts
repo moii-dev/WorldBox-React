@@ -89,6 +89,7 @@ export class SaveManager {
       partnerId: h.partnerId,
       parents: h.parents,
       children: h.children,
+      socialBonds: h.socialBonds,
       kills: h.kills,
       animalsHunted: h.animalsHunted,
       colorTheme: h.colorTheme,
@@ -211,7 +212,7 @@ export class SaveManager {
     const dateStr = `${now.toLocaleDateString()} ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
 
     return {
-      version: 3,
+      version: 4,
       name,
       date: dateStr,
       gameYear: sim.gameYear,
@@ -360,7 +361,9 @@ export class SaveManager {
         h.kingdomId = hData.kingdomId;
         h.homeId = hData.homeId;
         h.partnerId = hData.partnerId;
+        h.parents = hData.parents || [];
         h.children = hData.children || [];
+        h.socialBonds = hData.socialBonds || {};
         h.kills = hData.kills || 0;
         h.animalsHunted = hData.animalsHunted || 0;
         h.colorTheme = hData.colorTheme;

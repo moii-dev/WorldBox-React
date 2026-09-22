@@ -8,6 +8,7 @@ import {
   KingdomEntity,
   WorldGenPreset,
   Animal,
+  SocialBond,
 } from '../game/types';
 import { Toolbar } from './ui/Toolbar';
 import { ToolContextPanel } from './ui/ToolContextPanel';
@@ -203,6 +204,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ settings }) => {
             partnerId: h.partnerId,
             parents: h.parents,
             children: h.children,
+            socialBonds: { ...h.socialBonds },
             kills: h.kills,
             x: h.x,
             y: h.y,
@@ -471,7 +473,25 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ settings }) => {
         animal={selectedAnimal}
         settlement={selectedSettlement}
         kingdom={selectedKingdom}
-        pacts={selectedKingdom ? (engineRef.current?.simulation.diplomacyManager.getPactsForKingdom(selectedKingdom.id) ?? []) : []}
+        socialConnections={selectedHuman && engineRef.current
+          ? (Object.entries(selectedHuman.socialBonds ?? {}) as Array<[string, SocialBond]>)
+              .map(([personId, bond]) => ({
+                id: personId,
+                name: engineRef.current?.entityManager.getHuman(personId)?.name ?? 'Покинувший мир житель',
+                score: bond.score,
+              }))
+              .sort((a, b) => Math.abs(b.score) - Math.abs(a.score))
+              .slice(0, 4)
+          : []}
+        pacts={selectedKingdom
+          ? (engineRef.current?.simulation.diplomacyManager.getPactsForKingdom(selectedKingdom.id) ?? []).map((pact) => {
+              const otherId = pact.kingdomAId === selectedKingdom.id ? pact.kingdomBId : pact.kingdomAId;
+              return {
+                ...pact,
+                counterpartyName: engineRef.current?.simulation.kingdomManager.getKingdom(otherId)?.name ?? 'Неизвестное государство',
+              };
+            })
+          : []}
         relations={selectedKingdom
           ? (Object.entries(selectedKingdom.relations) as Array<[string, number]>)
               .map(([otherId, value]) => {

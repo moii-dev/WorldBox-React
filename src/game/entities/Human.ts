@@ -9,6 +9,7 @@ import {
   WeaponType,
   ArmorType,
   DeathCause,
+  SocialBond,
 } from '../types';
 import { World } from '../world/World';
 import { ResourceManager } from '../resources/ResourceManager';
@@ -83,6 +84,7 @@ export class Human implements HumanEntity {
   public partnerId: string | null = null;
   public parents: string[] = [];
   public children: string[] = [];
+  public socialBonds: Record<string, SocialBond> = {};
   public birthTimer: number = 0;
   public isExpecting: boolean = false;
   public courtingTargetId: string | null = null;
@@ -176,6 +178,15 @@ export class Human implements HumanEntity {
     else if (this.profession === 'SOLDIER') spd *= 1.1;
     if (this.warriorBoostTimer > 0) spd *= 1.5;
     return spd;
+  }
+
+  public adjustSocialBond(otherId: string, delta: number, gameYear: number): void {
+    if (otherId === this.id) return;
+    const current = this.socialBonds[otherId] ?? { score: 0, lastInteractionYear: gameYear };
+    this.socialBonds[otherId] = {
+      score: Math.max(-100, Math.min(100, Math.round((current.score + delta) * 10) / 10)),
+      lastInteractionYear: gameYear,
+    };
   }
 
   private calculateLifeStage(age: number): LifeStage {
@@ -650,6 +661,8 @@ export class Human implements HumanEntity {
             partner = other;
             this.partnerId = other.id;
             other.partnerId = this.id;
+            this.adjustSocialBond(other.id, 35, Math.floor(this.age));
+            other.adjustSocialBond(this.id, 35, Math.floor(other.age));
             break;
           }
         }
@@ -792,6 +805,10 @@ export class Human implements HumanEntity {
 
             this.children.push(baby.id);
             partner.children.push(baby.id);
+            this.adjustSocialBond(baby.id, 100, Math.floor(this.age));
+            partner.adjustSocialBond(baby.id, 100, Math.floor(partner.age));
+            baby.adjustSocialBond(this.id, 100, 0);
+            baby.adjustSocialBond(partner.id, 100, 0);
 
             this.reproductionCooldown = SIMULATION_CONFIG.reproductionCooldownTicks;
             partner.reproductionCooldown = SIMULATION_CONFIG.reproductionCooldownTicks;

@@ -19,6 +19,7 @@ export class EntityManager {
   private deathListeners = new Set<(cause: DeathCause) => void>();
   private birthListeners = new Set<() => void>();
   private deepDecisionCursor = 0;
+  private socialUpdateTicks = 0;
 
   constructor() {}
 
@@ -163,6 +164,10 @@ export class EntityManager {
     if (this.selectedHumanId === id) {
       this.selectedHumanId = null;
     }
+    for (const other of this.humans.values()) {
+      delete other.socialBonds[id];
+      if (other.partnerId === id) other.partnerId = null;
+    }
     return this.humans.delete(id);
   }
 
@@ -251,7 +256,8 @@ export class EntityManager {
     diplomacyManager: DiplomacyManager,
     animalManager?: AnimalManager,
     deltaTicks: number = 1,
-    hungerMultiplier: number = 1
+    hungerMultiplier: number = 1,
+    gameYear: number = 1
   ): void {
     const deadIds: string[] = [];
     this.rebuildBuckets();
@@ -291,11 +297,53 @@ export class EntityManager {
       const human = this.humans.get(id);
       this.killHuman(id, human?.deathCause ?? 'STARVATION');
     }
+
+    this.socialUpdateTicks += deltaTicks;
+    if (this.socialUpdateTicks >= 50) {
+      this.socialUpdateTicks = 0;
+      this.updateSocialBonds(gameYear);
+    }
+  }
+
+  /**
+   * Nearby peaceful residents naturally develop a small number of friendships or rivalries.
+   * The spatial index keeps this bounded even in large worlds.
+   */
+  private updateSocialBonds(gameYear: number): void {
+    for (const human of this.humans.values()) {
+      if (human.lifeStage === 'CHILD' || human.health <= 0 || human.state === 'ATTACKING') continue;
+
+      let closest: Human | null = null;
+      let closestDistanceSq = 9;
+      for (const other of this.nearbyHumans(human.x, human.y, 3)) {
+        if (
+          other.id === human.id ||
+          other.health <= 0 ||
+          other.state === 'ATTACKING' ||
+          (human.settlementId && other.settlementId && human.settlementId !== other.settlementId)
+        ) {
+          continue;
+        }
+        const distanceSq = (human.x - other.x) ** 2 + (human.y - other.y) ** 2;
+        if (distanceSq < closestDistanceSq) {
+          closest = other;
+          closestDistanceSq = distanceSq;
+        }
+      }
+
+      if (!closest || human.id > closest.id) continue;
+      const sharedFamily = human.partnerId === closest.id || human.parents.includes(closest.id) || human.children.includes(closest.id);
+      const chanceOfRivalry = !sharedFamily && human.hunger < 35 && closest.hunger < 35 ? 0.2 : 0.04;
+      const delta = Math.random() < chanceOfRivalry ? -4 : sharedFamily ? 3 : 2;
+      human.adjustSocialBond(closest.id, delta, gameYear);
+      closest.adjustSocialBond(human.id, delta, gameYear);
+    }
   }
 
   public clear(): void {
     this.humans.clear();
     this.buckets.clear();
     this.selectedHumanId = null;
+    this.socialUpdateTicks = 0;
   }
 }

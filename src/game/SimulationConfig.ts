@@ -6,6 +6,9 @@ export const SIMULATION_CONFIG = {
   // Time & Aging
   // At 25 TPS base speed, 100 ticks = 4 seconds per game year
   ticksPerGameYear: 100,
+  // At 25 TPS base speed, one season lasts 30 real seconds on 1× speed.
+  // Seasons intentionally span several game years so civilization development remains readable.
+  ticksPerSeason: 750,
   
   // Life stages (in game years)
   childAgeMax: 12,

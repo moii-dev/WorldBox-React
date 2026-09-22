@@ -45,6 +45,8 @@ export const StatsBar: React.FC<StatsBarProps> = ({ stats }) => {
   const tps = stats?.tps ?? 25;
   const biomes = stats?.biomes;
   const report = stats?.latestPopulationReport;
+  const seasonProgress = Math.round((stats?.seasonProgress ?? 0) * 100);
+  const crisisRemaining = Math.max(0, Math.ceil((stats?.activeCrisisRemainingTicks ?? 0) / 25));
 
   return (
     <div className="absolute top-4 left-4 z-20 flex flex-col gap-2 font-sans select-none">
@@ -60,9 +62,14 @@ export const StatsBar: React.FC<StatsBarProps> = ({ stats }) => {
         </div>
 
         {stats?.season && (
-          <div className="hidden sm:flex items-center gap-1 px-2 py-1 rounded-xl bg-sky-950/60 border border-sky-800/70 text-sky-200 text-xs font-medium">
-            {SEASON_LABELS[stats.season]}
-            {stats.activeCrisis && <span className="text-rose-300">• {CRISIS_LABELS[stats.activeCrisis] ?? stats.activeCrisis}</span>}
+          <div className="hidden sm:flex min-w-28 flex-col gap-1 rounded-xl border border-sky-800/70 bg-sky-950/60 px-2 py-1 text-xs font-medium text-sky-200" title={`До следующего сезона: ${100 - seasonProgress}%`}>
+            <div className="flex items-center gap-1">
+              {SEASON_LABELS[stats.season]}
+              {stats.activeCrisis && <span className="text-rose-300">• {CRISIS_LABELS[stats.activeCrisis] ?? stats.activeCrisis}</span>}
+            </div>
+            <div className="h-1 overflow-hidden rounded-full bg-sky-950">
+              <div className="h-full rounded-full bg-sky-300 transition-[width] duration-200" style={{ width: `${seasonProgress}%` }} />
+            </div>
           </div>
         )}
 
@@ -138,6 +145,13 @@ export const StatsBar: React.FC<StatsBarProps> = ({ stats }) => {
           {fps} FPS ({tps} TPS)
         </div>
       </div>
+
+      {stats?.activeCrisis && (
+        <div className="max-w-xs rounded-xl border border-rose-800/80 bg-rose-950/85 px-3 py-2 text-xs text-rose-100 shadow-xl backdrop-blur-md" role="status">
+          <span className="font-bold">⚠️ {CRISIS_LABELS[stats.activeCrisis] ?? stats.activeCrisis}</span>
+          <span className="text-rose-200"> — бедствие в регионе, ещё около {crisisRemaining} с.</span>
+        </div>
+      )}
 
       {/* Expanded Demographics Panel */}
       {showPopDetails && stats && (

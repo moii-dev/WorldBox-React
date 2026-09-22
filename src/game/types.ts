@@ -174,6 +174,12 @@ export type Season = 'SPRING' | 'SUMMER' | 'AUTUMN' | 'WINTER';
 export type ClimateCrisisType = 'DROUGHT' | 'COLD_SNAP' | 'FLOOD' | 'HURRICANE' | 'EPIDEMIC';
 export type DiplomaticPactType = 'TRADE' | 'NON_AGGRESSION' | 'ALLIANCE';
 
+/** A long-lived personal connection. Positive values represent friendship, negative values rivalry. */
+export interface SocialBond {
+  score: number;
+  lastInteractionYear: number;
+}
+
 export interface PopulationReport {
   year: number;
   births: number;
@@ -336,6 +342,7 @@ export interface HumanEntity {
   partnerId: string | null;
   parents: string[];
   children: string[];
+  socialBonds?: Record<string, SocialBond>;
   birthTimer?: number;
   isExpecting?: boolean;
   courtingTargetId?: string | null;
@@ -560,7 +567,10 @@ export interface SimulationStats {
   tps: number;
   biomes: BiomeBreakdown;
   season?: Season;
+  seasonProgress?: number;
   activeCrisis?: ClimateCrisisType | null;
+  activeCrisisRemainingTicks?: number;
+  activeCrisisDurationTicks?: number;
   dynamicPopulationCap?: number;
   latestPopulationReport?: PopulationReport | null;
 }

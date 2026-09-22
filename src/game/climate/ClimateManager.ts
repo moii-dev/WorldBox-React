@@ -7,12 +7,13 @@ import {
   ClimateState,
   Season,
 } from '../types';
+import { SIMULATION_CONFIG } from '../SimulationConfig';
 import { World } from '../world/World';
 
 const SEASONS: Season[] = ['SPRING', 'SUMMER', 'AUTUMN', 'WINTER'];
-const SEASON_TICKS = 25;
+const SEASON_TICKS = SIMULATION_CONFIG.ticksPerSeason;
 const YEAR_TICKS = SEASON_TICKS * SEASONS.length;
-const CRISIS_DURATION_TICKS = SEASON_TICKS * 2;
+const CRISIS_DURATION_TICKS = Math.floor(SEASON_TICKS / 2);
 
 const SEASON_LABELS: Record<Season, string> = {
   SPRING: 'Весна',

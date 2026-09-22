@@ -198,7 +198,8 @@ export class Simulation {
       this.diplomacyManager,
       this.animalManager,
       1,
-      this.climateManager.hungerMultiplier
+      this.climateManager.hungerMultiplier,
+      gameYear
     );
 
     // 5. Fire simulation, burning damage & divine status effects
@@ -390,7 +391,10 @@ export class Simulation {
 
       biomes: { ...this.world.biomes },
       season: this.climateManager.state.season,
+      seasonProgress: this.climateManager.state.seasonProgress,
       activeCrisis: this.climateManager.state.activeCrisis?.type ?? null,
+      activeCrisisRemainingTicks: this.climateManager.state.activeCrisis?.remainingTicks,
+      activeCrisisDurationTicks: this.climateManager.state.activeCrisis?.durationTicks,
       dynamicPopulationCap: this.entityManager.dynamicPopulationCap,
       latestPopulationReport: this.populationManager.getLatestReport(this.entityManager.population),
     };

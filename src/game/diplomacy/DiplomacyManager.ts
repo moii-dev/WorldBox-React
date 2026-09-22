@@ -224,7 +224,8 @@ export class DiplomacyManager {
     kingdomManager: KingdomManager,
     historyManager: HistoryManager,
     gameYear: number,
-    currentTick: number
+    currentTick: number,
+    allowAlliedIntervention: boolean = true
   ): WarEntity | null {
     const kA = kingdomManager.getKingdom(kingdomAId);
     const kB = kingdomManager.getKingdom(kingdomBId);
@@ -255,7 +256,50 @@ export class DiplomacyManager {
       '#ef4444'
     );
 
+    if (allowAlliedIntervention) {
+      this.inviteAlliesToWar(kA.id, kB.id, kingdomManager, historyManager, gameYear, currentTick);
+    }
+
     return war;
+  }
+
+  /** Allies may honour their pact and enter a defensive war, but cannot cascade another call to arms. */
+  private inviteAlliesToWar(
+    aggressorId: string,
+    defenderId: string,
+    kingdomManager: KingdomManager,
+    historyManager: HistoryManager,
+    gameYear: number,
+    currentTick: number
+  ): void {
+    const allies = this.getPactsForKingdom(aggressorId)
+      .filter((pact) => pact.type === 'ALLIANCE')
+      .map((pact) => (pact.kingdomAId === aggressorId ? pact.kingdomBId : pact.kingdomAId));
+
+    for (const allyId of allies) {
+      if (allyId === defenderId || Math.random() > 0.65) continue;
+      const ally = kingdomManager.getKingdom(allyId);
+      const defender = kingdomManager.getKingdom(defenderId);
+      if (!ally || !defender || ally.isAtWarWith(defenderId)) continue;
+
+      const intervention = this.declareWar(
+        allyId,
+        defenderId,
+        kingdomManager,
+        historyManager,
+        gameYear,
+        currentTick,
+        false
+      );
+      if (intervention) {
+        historyManager.logEvent(
+          gameYear,
+          `🤝 ${ally.name} вступает в войну на стороне союзника ${kingdomManager.getKingdom(aggressorId)?.name ?? ''}.`,
+          'RELATION_CHANGE',
+          '#a78bfa'
+        );
+      }
+    }
   }
 
   public signPeace(
@@ -289,6 +333,7 @@ export class DiplomacyManager {
       'PEACE_SIGNED',
       '#60a5fa'
     );
+    this.createPact('NON_AGGRESSION', kA.id, kB.id, gameYear, historyManager, kingdomManager);
   }
 
   public recordCasualty(victimKingdomId: string): void {

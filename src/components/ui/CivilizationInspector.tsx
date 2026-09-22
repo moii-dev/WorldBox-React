@@ -38,7 +38,8 @@ interface CivilizationInspectorProps {
   animal?: Animal | null;
   settlement?: SettlementEntity | null;
   kingdom?: KingdomEntity | null;
-  pacts?: DiplomaticPact[];
+  socialConnections?: Array<{ id: string; name: string; score: number }>;
+  pacts?: Array<DiplomaticPact & { counterpartyName?: string }>;
   relations?: Array<{ name: string; value: number; reason: string }>;
   onClose: () => void;
   onCenterCamera?: (x: number, y: number) => void;
@@ -141,6 +142,7 @@ export const CivilizationInspector: React.FC<CivilizationInspectorProps> = ({
   settlement,
   kingdom,
   pacts = [],
+  socialConnections = [],
   relations = [],
   onClose,
   onCenterCamera,
@@ -324,6 +326,27 @@ export const CivilizationInspector: React.FC<CivilizationInspectorProps> = ({
               <span className="text-slate-500 block text-[10px]">Побед в боях:</span>
               <span className="font-bold text-amber-300">{human.kills ?? 0}</span>
             </div>
+          </div>
+
+          <div className="mt-3 pt-2.5 border-t border-slate-800">
+            <div className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-1.5">Близкие связи</div>
+            {socialConnections.length ? (
+              <div className="space-y-1">
+                {socialConnections.map((connection) => {
+                  const isFriend = connection.score >= 0;
+                  return (
+                    <div key={connection.id} className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-950/60 px-2 py-1.5 text-xs">
+                      <span className="truncate text-slate-200">{connection.name}</span>
+                      <span className={isFriend ? 'text-emerald-300' : 'text-rose-300'}>
+                        {isFriend ? '♥ Друг' : '⚡ Соперник'} · {connection.score > 0 ? '+' : ''}{Math.round(connection.score)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-[11px] text-slate-500">Связи появятся, когда житель проведёт время с соседями.</div>
+            )}
           </div>
 
           {/* Inventory */}
@@ -526,9 +549,13 @@ export const CivilizationInspector: React.FC<CivilizationInspectorProps> = ({
           <div className="mt-3 pt-2 border-t border-slate-800 text-xs space-y-1.5">
             <div className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Договоры и отношения</div>
             {pacts.length ? pacts.map((pact) => {
-              const otherId = pact.kingdomAId === kingdom.id ? pact.kingdomBId : pact.kingdomAId;
               const label = pact.type === 'ALLIANCE' ? 'Союз' : pact.type === 'TRADE' ? 'Торговля' : 'Ненападение';
-              return <div key={pact.id} className="flex justify-between bg-emerald-950/50 border border-emerald-900 rounded p-1.5"><span>{label}</span><span className="text-slate-400">{otherId}</span></div>;
+              return (
+                <div key={pact.id} className="rounded border border-emerald-900 bg-emerald-950/50 p-1.5">
+                  <div className="flex justify-between gap-2"><span>{label}</span><span className="truncate text-emerald-200">{pact.counterpartyName}</span></div>
+                  <div className="mt-0.5 text-[10px] text-slate-500">Действует до года {pact.expiresYear}</div>
+                </div>
+              );
             }) : <div className="text-slate-500">Нет действующих договоров.</div>}
             {kingdom.atWarWith.length > 0 && <div className="text-rose-300">⚔️ Активные войны: {kingdom.atWarWith.length}</div>}
             {relations.length > 0 && <div className="pt-1 space-y-1">
