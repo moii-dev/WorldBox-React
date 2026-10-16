@@ -1,3 +1,4 @@
+import { nextIdAfter } from '../save/SaveIds';
 import { KingdomEntity } from '../types';
 
 export class Kingdom implements KingdomEntity {
@@ -19,6 +20,11 @@ export class Kingdom implements KingdomEntity {
   public faith: number = 0;
 
   private static idCounter: number = 1;
+
+  public restoreId(id: string): void {
+    this.id = id;
+    Kingdom.idCounter = nextIdAfter([id], 'kng_', Kingdom.idCounter);
+  }
   private static rulerFirstNames = ['Ярослав', 'Святополк', 'Владимир', 'Олег', 'Игорь', 'Всеволод', 'Мстислав', 'Рюрик', 'Добрыня', 'Борис', 'Глеб', 'Даниил'];
   private static rulerTitles = ['Мудрый', 'Грозный', 'Строитель', 'Храбрый', 'Великий', 'Благочестивый', 'Мореплаватель', 'Справедливый'];
   private static traits: ('PEACEFUL' | 'CRUEL' | 'EXPANSIONIST' | 'BUILDER' | 'DEVOUT' | 'MERCHANT')[] = [

@@ -1,3 +1,4 @@
+import { nextIdAfter } from '../save/SaveIds';
 import { BuildingEntity, BuildingType } from '../types';
 import { SIMULATION_CONFIG } from '../SimulationConfig';
 
@@ -29,6 +30,11 @@ export class Building implements BuildingEntity {
   public onFireTimer: number = 0;
 
   private static idCounter: number = 1;
+
+  public restoreId(id: string): void {
+    this.id = id;
+    Building.idCounter = nextIdAfter([id], 'bld_', Building.idCounter);
+  }
 
   constructor(type: BuildingType, x: number, y: number, settlementId: string | null = null, kingdomId: string | null = null) {
     this.id = `bld_${Building.idCounter++}`;

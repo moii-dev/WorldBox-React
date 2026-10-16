@@ -1,3 +1,4 @@
+import { nextIdAfter } from '../save/SaveIds';
 import {
   HumanEntity,
   HumanState,
@@ -129,6 +130,11 @@ export class Human implements HumanEntity {
   };
 
   private static idCounter: number = 1;
+
+  public restoreId(id: string): void {
+    this.id = id;
+    Human.idCounter = nextIdAfter([id], 'human_', Human.idCounter);
+  }
   private readonly baseSpeed: number = 0.06;
 
   constructor(

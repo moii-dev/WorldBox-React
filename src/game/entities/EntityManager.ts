@@ -340,6 +340,15 @@ export class EntityManager {
     }
   }
 
+  public restoreFrom(source: EntityManager): void {
+    // Keep the live simulation's lifecycle listeners and population setting.
+    this.clear();
+    this.humans = source.humans;
+    this.dynamicPopulationCap = this.maxPopulation;
+    this.deepDecisionCursor = 0;
+    this.rebuildBuckets();
+  }
+
   public clear(): void {
     this.humans.clear();
     this.buckets.clear();

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { GameEngine } from '../../game/core/GameEngine';
-import { SaveSlotMeta } from '../../game/save/SaveManager';
+import { SaveManager, SaveSlotMeta } from '../../game/save/SaveManager';
 import { SoundSynthesizer } from '../../game/audio/SoundSynthesizer';
 import {
   Save,
@@ -79,7 +79,7 @@ export const SaveLoadModal: React.FC<SaveLoadModalProps> = ({
       if (onToast) onToast(`Мир из Слота ${slotIndex + 1} успешно загружен!`);
       onClose();
     } else {
-      if (onToast) onToast(`Не удалось загрузить мир из этого слота.`);
+      if (onToast) onToast(SaveManager.lastLoadError || 'Не удалось загрузить мир из этого слота.');
     }
   };
 
@@ -124,7 +124,7 @@ export const SaveLoadModal: React.FC<SaveLoadModalProps> = ({
           if (onToast) onToast('Мир успешно импортирован из файла!');
           onClose();
         } else {
-          if (onToast) onToast('Неверный формат файла сохранения.');
+          if (onToast) onToast(SaveManager.lastLoadError || 'Неверный формат файла сохранения.');
         }
       } catch {
         if (onToast) onToast('Ошибка чтения JSON файла.');

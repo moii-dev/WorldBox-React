@@ -639,6 +639,32 @@ export class Simulation {
     this.accumulator = 0;
   }
 
+  /** Commit a fully prepared save while preserving objects held by input/rendering. */
+  public restoreFrom(source: Simulation): void {
+    this.entityManager.restoreFrom(source.entityManager);
+    const states: [object, object][] = [
+      [this.world, source.world],
+      [this.resourceManager, source.resourceManager],
+      [this.animalManager, source.animalManager],
+      [this.buildingManager, source.buildingManager],
+      [this.settlementManager, source.settlementManager],
+      [this.kingdomManager, source.kingdomManager],
+      [this.territoryManager, source.territoryManager],
+      [this.diplomacyManager, source.diplomacyManager],
+      [this.roadSystem, source.roadSystem],
+      [this.shipManager, source.shipManager],
+      [this.tradeManager, source.tradeManager],
+      [this.climateManager, source.climateManager],
+      [this.populationManager, source.populationManager],
+      [this.godPowersManager, source.godPowersManager],
+    ];
+    for (const [target, state] of states) Object.assign(target, state);
+    // History keeps its live event emitter; entities keep their birth/death callbacks.
+    this.historyManager.setEvents(source.historyManager.getEvents());
+    this.tickCount = source.tickCount;
+    this.accumulator = 0;
+  }
+
   public resetPopulationCensus(): void {
     this.populationManager.reset(this.entityManager.population);
   }

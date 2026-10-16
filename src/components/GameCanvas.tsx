@@ -128,6 +128,12 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ settings }) => {
       setSelectedCount(0);
     });
 
+    const unsubWorldLoaded = engine.events.on('worldLoaded', () => {
+      setSelectedSettlement(null);
+      setSelectedKingdom(null);
+      setInspectData(null);
+    });
+
     const unsubInspectData = engine.events.on('inspectData', (data: { category: string; data: any }) => {
       setInspectData(data);
     });
@@ -307,6 +313,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ settings }) => {
       unsubHistory();
       unsubMultipleSelected();
       unsubSelectionCleared();
+      unsubWorldLoaded();
       unsubInspectData();
       unsubHumanSelected();
       unsubBuildingSelected();

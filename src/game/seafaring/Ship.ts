@@ -1,3 +1,4 @@
+import { nextIdAfter } from '../save/SaveIds';
 import { ShipEntity, ShipType, ShipState, Inventory } from '../types';
 import { World } from '../world/World';
 import { SettlementManager } from '../settlements/SettlementManager';
@@ -27,6 +28,11 @@ export class Ship implements ShipEntity {
   public fishCooldown: number = 0;
 
   private static idCounter: number = 1;
+
+  public restoreId(id: string): void {
+    this.id = id;
+    Ship.idCounter = nextIdAfter([id], 'ship_', Ship.idCounter);
+  }
 
   constructor(
     type: ShipType,

@@ -1,5 +1,11 @@
-import { WorldSaveData } from '../types';
-import type { Simulation } from '../simulation/Simulation';
+import { HumanState, WorldSaveData } from '../types';
+import { Simulation } from '../simulation/Simulation';
+import { World } from '../world/World';
+import { ResourceManager } from '../resources/ResourceManager';
+import { EntityManager } from '../entities/EntityManager';
+import { EventEmitter } from '../utils/EventEmitter';
+import { SIMULATION_CONFIG } from '../SimulationConfig';
+import { validateSave } from './SaveValidation';
 
 export interface SaveSlotMeta {
   slot: number;
@@ -12,6 +18,7 @@ export interface SaveSlotMeta {
 }
 
 export class SaveManager {
+  public static lastLoadError: string | null = null;
   private static readonly STORAGE_PREFIX = 'godsim_save_slot_';
 
   public static getSlotKey(slot: number): string {
@@ -186,6 +193,10 @@ export class SaveManager {
       variant: r.variant,
       amount: r.amount,
       maxAmount: r.maxAmount,
+      foodAmount: r.foodAmount,
+      maxFood: r.maxFood,
+      regenerationRate: r.regenerationRate,
+      berryCount: r.berryCount,
     }));
 
     const ships = sim.shipManager
@@ -251,20 +262,30 @@ export class SaveManager {
   }
 
   public static loadFromSlot(slot: number, sim: Simulation): boolean {
+    SaveManager.lastLoadError = null;
     try {
       const raw = localStorage.getItem(SaveManager.getSlotKey(slot));
-      if (!raw) return false;
+      if (!raw) {
+        SaveManager.lastLoadError = 'Слот сохранения пуст.';
+        return false;
+      }
       const data: WorldSaveData = JSON.parse(raw);
       return SaveManager.deserializeWorld(data, sim);
     } catch (e) {
+      SaveManager.lastLoadError = 'Не удалось прочитать сохранение из браузера.';
       console.error('Failed to load from slot:', e);
       return false;
     }
   }
 
-  public static deserializeWorld(data: WorldSaveData, sim: Simulation): boolean {
+  public static deserializeWorld(value: unknown, target: Simulation): boolean {
+    SaveManager.lastLoadError = null;
     try {
-      const world = sim.world;
+      validateSave(value, target.world.width, target.world.height);
+      // Detach mutable arrays and records from the caller as well as the running world.
+      const data: WorldSaveData = JSON.parse(JSON.stringify(value));
+      const world = new World({ worldWidth: data.width, worldHeight: data.height, chunkSize: target.world.chunkSize });
+      const sim = new Simulation(world, new ResourceManager(), new EntityManager(), new EventEmitter());
 
       // 1. Restore terrain
       if (data.tiles && data.tiles.length === world.width * world.height) {
@@ -285,21 +306,14 @@ export class SaveManager {
         sim.roadSystem.wear.set(new Uint8Array(data.roadWear));
       }
 
-      // 3. Clear existing state
-      sim.entityManager.humans.clear();
-      sim.buildingManager.buildings.clear();
-      sim.settlementManager.settlements.clear();
-      sim.kingdomManager.kingdoms.clear();
-      sim.diplomacyManager.clear();
-      sim.animalManager.animals.clear();
-      sim.animalManager.carcasses.clear();
-      sim.resourceManager.resources.clear();
-      if (sim.shipManager) sim.shipManager.clear();
+      sim.historyManager.clear();
 
       // 4. Restore Kingdoms
       for (const kData of data.kingdoms || []) {
         const k = sim.kingdomManager.createKingdom(kData.name, kData.capitalSettlementId);
-        k.id = kData.id;
+        sim.kingdomManager.kingdoms.delete(k.id);
+        k.restoreId(kData.id);
+        sim.kingdomManager.kingdoms.set(k.id, k);
         if (kData.color) k.color = kData.color;
         k.settlementIds = kData.settlementIds || [];
         k.relations = kData.relations || {};
@@ -313,7 +327,9 @@ export class SaveManager {
       // 5. Restore Settlements
       for (const sData of data.settlements || []) {
         const s = sim.settlementManager.createSettlement(sData.name, sData.x, sData.y, sData.kingdomId);
-        s.id = sData.id;
+        sim.settlementManager.settlements.delete(s.id);
+        s.restoreId(sData.id);
+        sim.settlementManager.settlements.set(s.id, s);
         s.memberIds = sData.memberIds || [];
         s.buildingIds = sData.buildingIds || [];
         s.storage = sData.storage || { wood: 20, stone: 10, food: 30 };
@@ -328,7 +344,9 @@ export class SaveManager {
       // 6. Restore Buildings
       for (const bData of data.buildings || []) {
         const b = sim.buildingManager.placeBuilding(bData.type, bData.x, bData.y, bData.settlementId, bData.kingdomId);
-        b.id = bData.id;
+        sim.buildingManager.buildings.delete(b.id);
+        b.restoreId(bData.id);
+        sim.buildingManager.buildings.set(b.id, b);
         b.width = bData.width;
         b.height = bData.height;
         b.constructionProgress = bData.constructionProgress;
@@ -338,9 +356,9 @@ export class SaveManager {
         b.stoneNeeded = bData.stoneNeeded;
         b.stoneDelivered = bData.stoneDelivered;
         b.occupants = bData.occupants || [];
-        b.maxOccupants = bData.maxOccupants || 4;
-        b.health = bData.health || 100;
-        b.maxHealth = bData.maxHealth || 100;
+        b.maxOccupants = bData.maxOccupants ?? 4;
+        b.health = bData.health ?? 100;
+        b.maxHealth = bData.maxHealth ?? 100;
         b.cropStage = bData.cropStage;
         b.cropProgress = bData.cropProgress;
         b.livestockIds = bData.livestockIds;
@@ -349,13 +367,20 @@ export class SaveManager {
       // 7. Restore Humans
       for (const hData of data.humans || []) {
         const h = sim.entityManager.createHuman(hData.x, hData.y, hData.sex, hData.age, hData.parents);
-        h.id = hData.id;
+        sim.entityManager.humans.delete(h.id);
+        h.restoreId(hData.id);
+        sim.entityManager.humans.set(h.id, h);
         h.name = hData.name;
         h.health = hData.health;
         h.maxHealth = hData.maxHealth;
         h.hunger = hData.hunger;
         h.profession = hData.profession;
-        h.state = hData.state;
+        // Version 1–4 saves do not store task paths/targets. Re-plan safely.
+        h.state = HumanState.IDLE;
+        h.x = hData.x;
+        h.y = hData.y;
+        h.targetX = h.x;
+        h.targetY = h.y;
         h.inventory = hData.inventory || { wood: 0, stone: 0, food: 0 };
         h.settlementId = hData.settlementId;
         h.kingdomId = hData.kingdomId;
@@ -366,7 +391,7 @@ export class SaveManager {
         h.socialBonds = hData.socialBonds || {};
         h.kills = hData.kills || 0;
         h.animalsHunted = hData.animalsHunted || 0;
-        h.colorTheme = hData.colorTheme;
+        h.colorTheme = hData.colorTheme ?? h.colorTheme;
         h.weapon = hData.weapon || 'CLUB';
         h.armor = hData.armor || 'NONE';
         h.faith = hData.faith || 0;
@@ -376,14 +401,14 @@ export class SaveManager {
       // 8. Restore Animals & Carcasses
       for (const aData of data.animals || []) {
         const a = sim.animalManager.createAnimal(aData.species, aData.x, aData.y);
-        a.id = aData.id;
+        sim.animalManager.restoreAnimalId(a, aData.id);
         a.health = aData.health;
         a.maxHealth = aData.maxHealth;
         a.age = aData.age;
         a.isDomesticated = aData.isDomesticated;
         a.ownerSettlementId = aData.ownerSettlementId;
         a.penId = aData.penId;
-        a.state = aData.state;
+        a.state = 'IDLE';
       }
 
       for (const cData of data.carcasses || []) {
@@ -408,6 +433,10 @@ export class SaveManager {
           variant: rData.variant,
           amount: rData.amount,
           maxAmount: rData.maxAmount,
+          foodAmount: rData.foodAmount ?? (rData.type === 'BERRY_BUSH' ? rData.amount : undefined),
+          maxFood: rData.maxFood ?? (rData.type === 'BERRY_BUSH' ? rData.maxAmount : undefined),
+          regenerationRate: rData.regenerationRate,
+          berryCount: rData.berryCount,
         });
       }
 
@@ -415,15 +444,17 @@ export class SaveManager {
       if (sim.shipManager && data.ships) {
         for (const sData of data.ships) {
           const ship = sim.shipManager.createShip(sData.type, sData.x, sData.y, sData.settlementId, sData.kingdomId);
-          ship.id = sData.id;
+          sim.shipManager.ships.delete(ship.id);
+          ship.restoreId(sData.id);
+          sim.shipManager.ships.set(ship.id, ship);
           ship.targetX = sData.targetX;
           ship.targetY = sData.targetY;
           ship.passengers = sData.passengers || [];
           ship.cargo = sData.cargo || { wood: 0, stone: 0, food: 0 };
           ship.state = sData.state || 'IDLE';
-          ship.health = sData.health || 100;
-          ship.maxHealth = sData.maxHealth || 100;
-          ship.speed = sData.speed || 0.08;
+          ship.health = sData.health ?? 100;
+          ship.maxHealth = sData.maxHealth ?? 100;
+          ship.speed = sData.speed ?? 0.08;
           ship.facing = sData.facing || 'right';
         }
       }
@@ -435,16 +466,27 @@ export class SaveManager {
 
       sim.populationManager.setReports(
         data.populationReports,
-        1 + Math.floor((data.tickCount ?? 0) / 100),
+        data.gameYear,
         sim.entityManager.population
       );
       sim.climateManager.setState(data.climate);
       sim.diplomacyManager.setPacts(data.diplomaticPacts);
 
-      sim.tickCount = data.tickCount ?? ((data.gameYear || 1) - 1) * 750;
+      sim.tickCount = data.tickCount ?? ((data.gameYear || 1) - 1) * SIMULATION_CONFIG.ticksPerGameYear;
+      sim.resourceManager.rebuildAfterLoad();
+      sim.animalManager.rebuildAfterLoad();
+      world.recalculateAllBorders();
+      for (const settlement of sim.settlementManager.settlements.values()) {
+        if (!settlement.kingdomId) continue;
+        for (const tile of settlement.territoryTiles) {
+          sim.territoryManager.setTileOwner(tile.x, tile.y, settlement.kingdomId);
+        }
+      }
+      target.restoreFrom(sim);
 
       return true;
     } catch (e) {
+      SaveManager.lastLoadError = e instanceof Error ? e.message : 'Не удалось загрузить сохранение.';
       console.error('Failed to deserialize world data:', e);
       return false;
     }
@@ -456,10 +498,12 @@ export class SaveManager {
   }
 
   public static importFromJson(jsonString: string, sim: Simulation): boolean {
+    SaveManager.lastLoadError = null;
     try {
       const data: WorldSaveData = JSON.parse(jsonString);
       return SaveManager.deserializeWorld(data, sim);
     } catch {
+      SaveManager.lastLoadError = 'Файл не содержит корректный JSON.';
       return false;
     }
   }

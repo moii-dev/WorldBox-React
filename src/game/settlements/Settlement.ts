@@ -1,3 +1,4 @@
+import { nextIdAfter } from '../save/SaveIds';
 import { SettlementEntity } from '../types';
 
 export class Settlement implements SettlementEntity {
@@ -25,6 +26,11 @@ export class Settlement implements SettlementEntity {
   public isCoastal: boolean = false;
 
   private static idCounter: number = 1;
+
+  public restoreId(id: string): void {
+    this.id = id;
+    Settlement.idCounter = nextIdAfter([id], 'settle_', Settlement.idCounter);
+  }
 
   constructor(name: string, x: number, y: number, kingdomId: string | null = null) {
     this.id = `settle_${Settlement.idCounter++}`;

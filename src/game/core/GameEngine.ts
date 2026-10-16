@@ -327,6 +327,7 @@ export class GameEngine {
   public loadWorldFromSlot(slot: number): boolean {
     const ok = SaveManager.loadFromSlot(slot, this.simulation);
     if (ok) {
+      this.finishWorldLoad();
       this.renderer.roadSystem = this.simulation.roadSystem;
       this.renderer.shipManager = this.simulation.shipManager;
       this.renderer.tradeManager = this.simulation.tradeManager;
@@ -342,12 +343,23 @@ export class GameEngine {
   public importWorldJson(json: string): boolean {
     const ok = SaveManager.importFromJson(json, this.simulation);
     if (ok) {
+      this.finishWorldLoad();
       this.renderer.roadSystem = this.simulation.roadSystem;
       this.renderer.shipManager = this.simulation.shipManager;
       this.renderer.tradeManager = this.simulation.tradeManager;
       this.events.emit('worldLoaded', { slot: -1 });
     }
     return ok;
+  }
+
+  private finishWorldLoad(): void {
+    this.undoManager.clear();
+    this.emitHistoryState();
+    this.renderer.selectedEntityIds.clear();
+    for (const event of ['humanSelected', 'buildingSelected', 'animalSelected', 'selectionCleared']) {
+      this.events.emit(event, null);
+    }
+    this.simulation.emitStats();
   }
 
   public destroy(): void {

@@ -1,6 +1,7 @@
 import { ResourceNode, ResourceType, TileType } from '../types';
 import { World } from '../world/World';
 import { FOOD_CONFIG } from '../FoodConfig';
+import { nextIdAfter } from '../save/SaveIds';
 
 export class ResourceManager {
   public resources: Map<string, ResourceNode> = new Map();
@@ -403,6 +404,21 @@ export class ResourceManager {
           res.amount = res.foodAmount;
         }
       }
+    }
+  }
+
+  public rebuildAfterLoad(): void {
+    this.buckets.clear();
+    this.treeCount = this.stoneCount = this.berryBushCount = 0;
+    this.nextId = nextIdAfter(this.resources.keys(), 'res_');
+    this.growthTimer = 0;
+    for (const resource of this.resources.values()) {
+      const key = this.getBucketKey(resource.x, resource.y);
+      if (!this.buckets.has(key)) this.buckets.set(key, new Set());
+      this.buckets.get(key)!.add(resource.id);
+      if (resource.type === ResourceType.TREE) this.treeCount++;
+      if (resource.type === ResourceType.STONE) this.stoneCount++;
+      if (resource.type === ResourceType.BERRY_BUSH) this.berryBushCount++;
     }
   }
 

@@ -5,6 +5,8 @@ import { Animal } from './Animal';
 import { EntityManager } from './EntityManager';
 import { BuildingManager } from '../buildings/BuildingManager';
 
+import { nextIdAfter } from '../save/SaveIds';
+
 export class AnimalManager {
   public animals: Map<string, Animal> = new Map();
   public carcasses: Map<string, CarcassEntity> = new Map();
@@ -429,6 +431,30 @@ export class AnimalManager {
             break;
           }
         }
+      }
+    }
+  }
+
+  public restoreAnimalId(animal: Animal, id: string): void {
+    this.animals.delete(animal.id);
+    animal.id = id;
+    this.animals.set(id, animal);
+    this.nextAnimalId = nextIdAfter([id], 'animal_', this.nextAnimalId);
+  }
+
+  public rebuildAfterLoad(): void {
+    this.buckets.clear();
+    this.carcassBuckets.clear();
+    this.nextAnimalId = nextIdAfter(this.animals.keys(), 'animal_');
+    this.nextCarcassId = nextIdAfter(this.carcasses.keys(), 'carcass_');
+    for (const [items, buckets] of [
+      [this.animals.values(), this.buckets],
+      [this.carcasses.values(), this.carcassBuckets],
+    ] as const) {
+      for (const item of items) {
+        const key = this.getBucketKey(item.x, item.y);
+        if (!buckets.has(key)) buckets.set(key, new Set());
+        buckets.get(key)!.add(item.id);
       }
     }
   }

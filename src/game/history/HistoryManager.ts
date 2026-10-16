@@ -1,5 +1,6 @@
 import { WorldEvent } from '../types';
 import { EventEmitter } from '../utils/EventEmitter';
+import { nextIdAfter } from '../save/SaveIds';
 
 export class HistoryManager {
   public eventsList: WorldEvent[] = [];
@@ -49,7 +50,7 @@ export class HistoryManager {
 
   public setEvents(events: WorldEvent[]): void {
     this.eventsList = [...events];
-    this.nextEventId = this.eventsList.length + 1;
+    this.nextEventId = nextIdAfter(this.eventsList.map((event) => event.id), 'evt_');
   }
 
   public clear(): void {
