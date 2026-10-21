@@ -253,7 +253,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                       <span className="text-[10px] font-mono text-slate-400 px-1 bg-slate-800 rounded">
                         +{typeof tool.spawnGroupSize === 'object' && tool.spawnGroupSize !== null
                           ? tool.spawnGroupSize.max
-                          : (tool.spawnGroupSize || 1)}
+                          : 1}
                       </span>
                     </button>
                   ))}
@@ -642,7 +642,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                   <button
                     id="btn-gen-islands"
                     onClick={() => {
-                      onGenerateWorld('islands');
+                      onGenerateWorld('ring');
                       setOpenDropdown(null);
                     }}
                     className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-sky-300 hover:bg-slate-800 text-left transition-colors"

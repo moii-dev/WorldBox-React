@@ -171,15 +171,44 @@ export class BuildingManager {
     return building;
   }
 
-  public removeBuilding(id: string): boolean {
+  public removeBuilding(
+    id: string,
+    entityManager?: { humans: Map<string, any> },
+    settlementManager?: { getSettlement: (id: string) => any },
+    animalManager?: { animals: Map<string, any> }
+  ): boolean {
     if (this.selectedBuildingId === id) {
       this.selectedBuildingId = null;
+    }
+    const bld = this.buildings.get(id);
+    if (bld && settlementManager && bld.settlementId) {
+      const s = settlementManager.getSettlement(bld.settlementId);
+      if (s && s.buildingIds) {
+        s.buildingIds = s.buildingIds.filter((bId: string) => bId !== id);
+      }
+    }
+    if (entityManager) {
+      for (const h of entityManager.humans.values()) {
+        if (h.homeId === id) h.homeId = null;
+        if (h.targetBuildingId === id) h.targetBuildingId = null;
+      }
+    }
+    if (animalManager) {
+      for (const a of animalManager.animals.values()) {
+        if (a.penId === id) a.penId = null;
+      }
     }
     return this.buildings.delete(id);
   }
 
-  public demolishBuilding(id: string, _world?: World): boolean {
-    return this.removeBuilding(id);
+  public demolishBuilding(
+    id: string,
+    _world?: World,
+    entityManager?: { humans: Map<string, any> },
+    settlementManager?: { getSettlement: (id: string) => any },
+    animalManager?: { animals: Map<string, any> }
+  ): boolean {
+    return this.removeBuilding(id, entityManager, settlementManager, animalManager);
   }
 
   /**

@@ -47,7 +47,7 @@ export const MiniMap: React.FC<MiniMapProps> = ({ engine, showPoliticalMap }) =>
         const idx = (my * mapW + mx) * 4;
 
         if (showPoliticalMap && engine.simulation.territoryManager) {
-          const ownerId = engine.simulation.territoryManager.getTileOwner(wx, wy);
+          const ownerId = engine.simulation.territoryManager.getOwnerKingdomId(wx, wy);
           if (ownerId) {
             const kingdom = engine.simulation.kingdomManager.getKingdom(ownerId);
             if (kingdom) {
@@ -107,8 +107,8 @@ export const MiniMap: React.FC<MiniMapProps> = ({ engine, showPoliticalMap }) =>
 
     // 2. Draw settlements as small bright markers
     for (const s of engine.simulation.settlementManager.settlements.values()) {
-      const smx = Math.floor((s.centerX / world.width) * mapW);
-      const smy = Math.floor((s.centerY / world.height) * mapH);
+      const smx = Math.floor((s.x / world.width) * mapW);
+      const smy = Math.floor((s.y / world.height) * mapH);
       ctx.fillStyle = '#facc15';
       ctx.fillRect(smx - 1, smy - 1, 3, 3);
     }

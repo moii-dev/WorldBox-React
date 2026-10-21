@@ -218,7 +218,7 @@ export const SaveLoadModal: React.FC<SaveLoadModalProps> = ({
                         <Crown className="w-3.5 h-3.5 text-amber-400" /> Королевства: {slot.kingdomsCount}
                       </span>
                       <span className="flex items-center gap-1">
-                        <Clock className="w-3.5 h-3.5 text-slate-500" /> {formatDate(slot.timestamp)}
+                        <Clock className="w-3.5 h-3.5 text-slate-500" /> {formatDate(String(slot.timestamp || slot.date || ''))}
                       </span>
                     </div>
                   ) : (

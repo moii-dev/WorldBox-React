@@ -71,10 +71,16 @@ export class KingdomManager {
     return kingdom;
   }
 
-  public removeKingdom(id: string): boolean {
+  public removeKingdom(
+    id: string,
+    diplomacyManager?: { handleKingdomDestroyed: (id: string) => void },
+    territoryManager?: { clearKingdomTiles: (id: string) => void }
+  ): boolean {
     if (this.selectedKingdomId === id) {
       this.selectedKingdomId = null;
     }
+    diplomacyManager?.handleKingdomDestroyed(id);
+    territoryManager?.clearKingdomTiles(id);
     return this.kingdoms.delete(id);
   }
 
@@ -134,8 +140,13 @@ export class KingdomManager {
   /**
    * Synchronize kingdom populations, settlements, and military strength
    */
-  public updateKingdoms(settlementManager: SettlementManager, entityManager: EntityManager): void {
-    for (const kingdom of this.kingdoms.values()) {
+  public updateKingdoms(
+    settlementManager: SettlementManager,
+    entityManager: EntityManager,
+    diplomacyManager?: { handleKingdomDestroyed: (id: string) => void },
+    territoryManager?: { clearKingdomTiles: (id: string) => void }
+  ): void {
+    for (const kingdom of Array.from(this.kingdoms.values())) {
       // 1. Keep valid settlements
       kingdom.settlementIds = kingdom.settlementIds.filter(
         (sId) => settlementManager.getSettlement(sId) !== undefined
@@ -143,8 +154,13 @@ export class KingdomManager {
 
       // If no settlements remain, kingdom collapses
       if (kingdom.settlementIds.length === 0) {
-        this.kingdoms.delete(kingdom.id);
+        this.removeKingdom(kingdom.id, diplomacyManager, territoryManager);
         continue;
+      }
+
+      // If capital was destroyed, elect first remaining settlement as capital
+      if (!settlementManager.getSettlement(kingdom.capitalSettlementId)) {
+        kingdom.capitalSettlementId = kingdom.settlementIds[0];
       }
 
       // 2. Count total population and soldiers

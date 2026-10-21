@@ -42,14 +42,19 @@ export type UndoAction =
   | {
       type: 'PLACE_BUILDING';
       buildingId: string;
+      buildingType?: any;
+      x?: number;
+      y?: number;
+      settlementId?: string | null;
+      kingdomId?: string | null;
     }
   | {
       type: 'ERASE';
       tileChanges?: TileChange[];
       removedEntityIds?: string[];
       removedResourceNodes?: { id: string; type: any; x: number; y: number; amount: number }[];
-      removedHumans?: { id: string; x: number; y: number }[];
-      removedAnimals?: { id: string; species: AnimalSpecies; x: number; y: number }[];
+      removedHumans?: { id: string; x: number; y: number; name?: string; sex?: any; age?: number; profession?: any; inventory?: any }[];
+      removedAnimals?: { id: string; species: AnimalSpecies; x: number; y: number; isDomesticated?: boolean; ownerSettlementId?: string | null }[];
     };
 
 export class UndoManager {
@@ -90,17 +95,45 @@ export class UndoManager {
     });
   }
 
+  public recordBuildingAdded(building: any): void {
+    this.pushAction({
+      type: 'PLACE_BUILDING',
+      buildingId: building.id,
+      buildingType: building.type,
+      x: building.x,
+      y: building.y,
+      settlementId: building.settlementId,
+      kingdomId: building.kingdomId,
+    });
+  }
+
   public recordHumanRemoved(human: Human): void {
     this.pushAction({
       type: 'ERASE',
-      removedHumans: [{ id: human.id, x: human.x, y: human.y }],
+      removedHumans: [{
+        id: human.id,
+        x: human.x,
+        y: human.y,
+        name: human.name,
+        sex: human.sex,
+        age: human.age,
+        profession: human.profession,
+        inventory: { ...human.inventory },
+      }],
     });
   }
 
   public recordAnimalRemoved(animal: Animal): void {
     this.pushAction({
       type: 'ERASE',
-      removedAnimals: [{ id: animal.id, species: animal.species, x: animal.x, y: animal.y }],
+      removedAnimals: [{
+        id: animal.id,
+        species: animal.species,
+        x: animal.x,
+        y: animal.y,
+        isDomesticated: animal.isDomesticated,
+        ownerSettlementId: animal.ownerSettlementId,
+      }],
     });
   }
 
@@ -212,12 +245,25 @@ export class UndoManager {
       }
       if (action.removedHumans && entityManager) {
         for (const h of action.removedHumans) {
-          entityManager.addHuman(Math.floor(h.x), Math.floor(h.y), world);
+          const restored = entityManager.createHuman(Math.floor(h.x), Math.floor(h.y), h.sex, h.age);
+          if (h.id) {
+            entityManager.humans.delete(restored.id);
+            restored.restoreId(h.id);
+            entityManager.humans.set(restored.id, restored);
+          }
+          if (h.name) restored.name = h.name;
+          if (h.profession) restored.profession = h.profession;
+          if (h.inventory) restored.inventory = { ...h.inventory };
         }
       }
       if (action.removedAnimals && animalManager) {
         for (const a of action.removedAnimals) {
-          animalManager.addAnimal(a.species, a.x, a.y);
+          const restored = animalManager.createAnimal(a.species, a.x, a.y, undefined, a.isDomesticated, a.ownerSettlementId);
+          if (a.id) {
+            animalManager.animals.delete(restored.id);
+            restored.restoreId(a.id);
+            animalManager.animals.set(restored.id, restored);
+          }
         }
       }
     }
@@ -254,6 +300,40 @@ export class UndoManager {
       }
     } else if (action.type === 'PLACE_RESOURCE' && resourceManager) {
       resourceManager.addResource(action.resType as any, action.x, action.y);
+    } else if (action.type === 'PLACE_BUILDING' && buildingManager) {
+      if (action.buildingType && action.x !== undefined && action.y !== undefined) {
+        const bld = buildingManager.placeBuilding(action.buildingType, action.x, action.y, action.settlementId, action.kingdomId);
+        if (bld && action.buildingId) {
+          buildingManager.buildings.delete(bld.id);
+          bld.restoreId(action.buildingId);
+          buildingManager.buildings.set(bld.id, bld);
+        }
+      }
+    } else if (action.type === 'ERASE') {
+      if (action.tileChanges) {
+        for (const change of action.tileChanges) {
+          const x = change.index % world.width;
+          const y = Math.floor(change.index / world.width);
+          world.setTile(x, y, change.newTile, change.newElevation);
+        }
+        world.recalculateWaterDepth();
+        world.recalculateAllBorders();
+      }
+      if (action.removedResourceNodes && resourceManager) {
+        for (const r of action.removedResourceNodes) {
+          resourceManager.removeResource(r.id);
+        }
+      }
+      if (action.removedHumans && entityManager) {
+        for (const h of action.removedHumans) {
+          entityManager.removeHuman(h.id);
+        }
+      }
+      if (action.removedAnimals && animalManager) {
+        for (const a of action.removedAnimals) {
+          animalManager.removeAnimal(a.id);
+        }
+      }
     }
 
     this.undoStack.push(action);

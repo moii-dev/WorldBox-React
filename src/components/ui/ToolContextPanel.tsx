@@ -134,7 +134,7 @@ export const ToolContextPanel: React.FC<ToolContextPanelProps> = ({
             <span className="px-2 py-0.5 bg-indigo-950/80 text-indigo-300 rounded border border-indigo-800/60">
               Shift + Клик: Группа ({typeof toolDef.spawnGroupSize === 'object' && toolDef.spawnGroupSize !== null
                 ? (toolDef.spawnGroupSize.label || `${toolDef.spawnGroupSize.min}-${toolDef.spawnGroupSize.max}`)
-                : (toolDef.spawnGroupSize || 4)})
+                : 4})
             </span>
             <span className="text-slate-400 hidden sm:inline">Зажмите ЛКМ для череды существ</span>
           </div>

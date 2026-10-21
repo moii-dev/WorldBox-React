@@ -479,7 +479,7 @@ export const CivilizationInspector: React.FC<CivilizationInspectorProps> = ({
                   <Sprout className="w-3.5 h-3.5" /> Стадия урожая:
                 </span>
                 <span className="text-[11px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                  {building.cropStage === 'READY_TO_HARVEST'
+                  {building.cropStage === 'READY'
                     ? '🌾 Готов к сбору'
                     : building.cropStage === 'GROWING'
                     ? '🌱 Рост культур'

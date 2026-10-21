@@ -13,6 +13,9 @@ import { BuildingManager } from '../buildings/BuildingManager';
 
 export class Animal implements AnimalEntity {
   public id: string;
+  public restoreId(id: string): void {
+    this.id = id;
+  }
   public species: AnimalSpecies;
   public x: number;
   public y: number;

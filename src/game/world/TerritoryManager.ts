@@ -21,6 +21,20 @@ export class TerritoryManager {
     return y * this.width + x;
   }
 
+  public getTileOwner(x: number, y: number): string | null {
+    return this.getOwnerKingdomId(x, y);
+  }
+
+  public clearKingdomTiles(kingdomId: string): void {
+    const tiles = this.kingdomTiles.get(kingdomId);
+    if (tiles) {
+      for (const idx of tiles) {
+        this.tileOwners.delete(idx);
+      }
+      this.kingdomTiles.delete(kingdomId);
+    }
+  }
+
   public getOwnerKingdomId(x: number, y: number): string | null {
     if (x < 0 || x >= this.width || y < 0 || y >= this.height) return null;
     return this.tileOwners.get(this.getIndex(x, y)) || null;

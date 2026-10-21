@@ -253,7 +253,7 @@ export type ToolType =
   | 'napalm'
   | 'freeze';
 
-export type WorldGenPreset = 'continents' | 'archipelago' | 'pangea' | 'ring' | 'empty';
+export type WorldGenPreset = 'continents' | 'archipelago' | 'pangea' | 'ring' | 'islands' | 'empty';
 
 export interface ResourceNode {
   id: string;
@@ -323,6 +323,7 @@ export interface HumanEntity {
   health: number;
   maxHealth: number;
   hunger: number; // 0 (starving) to 100 (satiated)
+  maxHunger?: number;
   state: HumanState;
   profession: Profession;
   inventory: Inventory;
@@ -348,7 +349,7 @@ export interface HumanEntity {
   courtingTargetId?: string | null;
   
   kills: number;
-  animalsHunted: number;
+  animalsHunted?: number;
   weapon?: WeaponType;
   armor?: ArmorType;
   faith?: number;

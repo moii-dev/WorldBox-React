@@ -99,7 +99,7 @@ export class GodPowersManager {
         if (dist <= 3.0) {
           bld.health = (bld.health ?? bld.maxHealth ?? 100) - 90;
           if (bld.health <= 0) {
-            buildingManager.demolishBuilding(bld.id, world);
+            buildingManager.demolishBuilding(bld.id, world, entityManager, undefined, animalManager);
           }
         }
       }
@@ -211,7 +211,7 @@ export class GodPowersManager {
           const bldCenterY = bld.y + bld.height / 2;
           const dist = Math.hypot(bldCenterX - ix, bldCenterY - iy);
           if (dist <= 5.0) {
-            buildingManager.demolishBuilding(bld.id, world);
+            buildingManager.demolishBuilding(bld.id, world, entityManager, undefined, animalManager);
           }
         }
       }
@@ -258,7 +258,7 @@ export class GodPowersManager {
           const dmg = 80 + Math.floor(Math.random() * 80);
           bld.health = (bld.health ?? bld.maxHealth ?? 100) - dmg;
           if (bld.health <= 0) {
-            buildingManager.demolishBuilding(bld.id, world);
+            buildingManager.demolishBuilding(bld.id, world, entityManager, undefined, animalManager);
           }
         }
       }
@@ -567,7 +567,7 @@ export class GodPowersManager {
           if (dist <= 3.2) {
             bld.health = (bld.health ?? bld.maxHealth ?? 100) - 130;
             if (bld.health <= 0) {
-              buildingManager.demolishBuilding(bld.id, world);
+              buildingManager.demolishBuilding(bld.id, world, entityManager, undefined, animalManager);
             }
           }
         }

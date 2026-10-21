@@ -8,6 +8,62 @@ interface PathNode {
   parent: PathNode | null;
 }
 
+class FastMinHeap {
+  private data: PathNode[] = [];
+
+  public get size(): number {
+    return this.data.length;
+  }
+
+  public clear(): void {
+    this.data.length = 0;
+  }
+
+  public push(node: PathNode): void {
+    this.data.push(node);
+    this.up(this.data.length - 1);
+  }
+
+  public pop(): PathNode | undefined {
+    if (this.data.length === 0) return undefined;
+    const top = this.data[0];
+    const bottom = this.data.pop()!;
+    if (this.data.length > 0) {
+      this.data[0] = bottom;
+      this.down(0);
+    }
+    return top;
+  }
+
+  private up(i: number): void {
+    const item = this.data[i];
+    while (i > 0) {
+      const p = (i - 1) >> 1;
+      if (this.data[p].f <= item.f) break;
+      this.data[i] = this.data[p];
+      i = p;
+    }
+    this.data[i] = item;
+  }
+
+  private down(i: number): void {
+    const len = this.data.length;
+    const item = this.data[i];
+    const half = len >> 1;
+    while (i < half) {
+      let child = (i << 1) + 1;
+      const right = child + 1;
+      if (right < len && this.data[right].f < this.data[child].f) {
+        child = right;
+      }
+      if (this.data[child].f >= item.f) break;
+      this.data[i] = this.data[child];
+      i = child;
+    }
+    this.data[i] = item;
+  }
+}
+
 export class Pathfinder {
   private static readonly CARDINAL_DIRS = [
     { dx: 0, dy: -1 },
@@ -16,8 +72,23 @@ export class Pathfinder {
     { dx: -1, dy: 0 },
   ];
 
+  // Reusable static buffers to avoid GC churn during pathfinding
+  private static visitedMap: Uint32Array | null = null;
+  private static bestGMap: Float32Array | null = null;
+  private static bestGIteration: Uint32Array | null = null;
+  private static currentIteration: number = 0;
+  private static openHeap: FastMinHeap = new FastMinHeap();
+
+  public static clearCache(): void {
+    this.visitedMap = null;
+    this.bestGMap = null;
+    this.bestGIteration = null;
+    this.currentIteration = 0;
+    this.openHeap.clear();
+  }
+
   /**
-   * Fast budget-limited A* search to a target tile
+   * Fast budget-limited A* search to a target tile with zero GC allocations in the search loop
    */
   public static findPath(
     world: World,
@@ -45,8 +116,27 @@ export class Pathfinder {
       return [];
     }
 
-    const openSet: PathNode[] = [];
-    const closedSet = new Uint8Array(world.width * world.height);
+    const totalTiles = world.width * world.height;
+    if (!this.visitedMap || this.visitedMap.length < totalTiles) {
+      this.visitedMap = new Uint32Array(totalTiles);
+      this.bestGMap = new Float32Array(totalTiles);
+      this.bestGIteration = new Uint32Array(totalTiles);
+      this.currentIteration = 1;
+    } else {
+      this.currentIteration++;
+      if (this.currentIteration >= 0xfffffffe) {
+        this.visitedMap.fill(0);
+        this.bestGIteration!.fill(0);
+        this.currentIteration = 1;
+      }
+    }
+
+    const iter = this.currentIteration;
+    const visited = this.visitedMap;
+    const bestG = this.bestGMap!;
+    const bestGIter = this.bestGIteration!;
+    const heap = this.openHeap;
+    heap.clear();
 
     const startNode: PathNode = {
       x: startX,
@@ -56,24 +146,22 @@ export class Pathfinder {
       parent: null,
     };
 
-    openSet.push(startNode);
+    heap.push(startNode);
+    const startIdx = startY * world.width + startX;
+    bestG[startIdx] = 0;
+    bestGIter[startIdx] = iter;
 
     let budget = maxBudget;
     let closestNode: PathNode = startNode;
     let minH = startNode.f;
 
-    while (openSet.length > 0 && budget-- > 0) {
-      // Find lowest f score in openSet
-      let lowestIdx = 0;
-      for (let i = 1; i < openSet.length; i++) {
-        if (openSet[i].f < openSet[lowestIdx].f) {
-          lowestIdx = i;
-        }
-      }
-
-      const current = openSet.splice(lowestIdx, 1)[0];
+    while (heap.size > 0 && budget-- > 0) {
+      const current = heap.pop()!;
       const curIdx = current.y * world.width + current.x;
-      closedSet[curIdx] = 1;
+
+      // Skip if already closed
+      if (visited[curIdx] === iter) continue;
+      visited[curIdx] = iter;
 
       // Reached goal?
       if (current.x === actualTargetX && current.y === actualTargetY) {
@@ -95,32 +183,30 @@ export class Pathfinder {
         if (!world.isWalkable(nx, ny)) continue;
 
         const neighborIdx = ny * world.width + nx;
-        if (closedSet[neighborIdx] === 1) continue;
+        if (visited[neighborIdx] === iter) continue;
 
         const gScore = current.g + 1;
+        if (bestGIter[neighborIdx] === iter && gScore >= bestG[neighborIdx]) {
+          continue;
+        }
+
+        bestG[neighborIdx] = gScore;
+        bestGIter[neighborIdx] = iter;
+
         const hScore = Math.abs(actualTargetX - nx) + Math.abs(actualTargetY - ny);
         const fScore = gScore + hScore;
 
-        const existingIdx = openSet.findIndex((n) => n.x === nx && n.y === ny);
-        if (existingIdx !== -1) {
-          if (gScore < openSet[existingIdx].g) {
-            openSet[existingIdx].g = gScore;
-            openSet[existingIdx].f = fScore;
-            openSet[existingIdx].parent = current;
-          }
-        } else {
-          openSet.push({
-            x: nx,
-            y: ny,
-            g: gScore,
-            f: fScore,
-            parent: current,
-          });
-        }
+        heap.push({
+          x: nx,
+          y: ny,
+          g: gScore,
+          f: fScore,
+          parent: current,
+        });
       }
     }
 
-    // If reached budget limit and didn't find exact target, but made progress, use closestNode
+    // If reached budget limit and didn't find exact target, but made significant progress towards it
     if (closestNode !== startNode && minH < startNode.f) {
       return this.reconstructPath(closestNode);
     }

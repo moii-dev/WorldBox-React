@@ -212,6 +212,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ settings }) => {
             children: h.children,
             socialBonds: { ...h.socialBonds },
             kills: h.kills,
+            animalsHunted: h.animalsHunted,
             x: h.x,
             y: h.y,
             targetX: h.targetX,

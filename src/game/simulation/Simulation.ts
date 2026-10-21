@@ -290,7 +290,7 @@ export class Simulation {
         isAtWar
       );
 
-      this.kingdomManager.updateKingdoms(this.settlementManager, this.entityManager);
+      this.kingdomManager.updateKingdoms(this.settlementManager, this.entityManager, this.diplomacyManager, this.territoryManager);
     }
 
     if (this.tickCount % SIMULATION_CONFIG.territoryExpansionIntervalTicks === 0) {

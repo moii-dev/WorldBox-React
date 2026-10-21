@@ -741,6 +741,7 @@ export class InputManager {
       );
 
       if (bld) {
+        if (this.undoManager) this.undoManager.recordBuildingAdded(bld);
         this.buildingManager.selectBuilding(bld.id);
         this.events.emit('buildingSelected', bld);
       } else {

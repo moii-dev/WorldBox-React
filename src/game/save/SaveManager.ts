@@ -13,6 +13,9 @@ export interface SaveSlotMeta {
   name: string;
   date: string;
   year: number;
+  gameYear?: number;
+  era?: string;
+  timestamp?: string;
   population: number;
   kingdomsCount: number;
 }
@@ -20,6 +23,41 @@ export interface SaveSlotMeta {
 export class SaveManager {
   public static lastLoadError: string | null = null;
   private static readonly STORAGE_PREFIX = 'godsim_save_slot_';
+
+  public static packGrid(arr: number[] | Uint8Array | Float32Array): string {
+    if (!arr || arr.length === 0) return '';
+    const parts: string[] = [];
+    let currentVal = arr[0];
+    let count = 1;
+    for (let i = 1; i < arr.length; i++) {
+      const val = arr[i];
+      if (val === currentVal) {
+        count++;
+      } else {
+        parts.push(`${count}x${currentVal}`);
+        currentVal = val;
+        count = 1;
+      }
+    }
+    parts.push(`${count}x${currentVal}`);
+    return parts.join(',');
+  }
+
+  public static unpackGrid(str: string): number[] {
+    const result: number[] = [];
+    const parts = str.split(',');
+    for (const part of parts) {
+      if (!part) continue;
+      const xIdx = part.indexOf('x');
+      if (xIdx === -1) continue;
+      const count = parseInt(part.slice(0, xIdx), 10);
+      const val = parseFloat(part.slice(xIdx + 1));
+      for (let i = 0; i < count; i++) {
+        result.push(val);
+      }
+    }
+    return result;
+  }
 
   public static getSlotKey(slot: number): string {
     return `${SaveManager.STORAGE_PREFIX}${slot}`;
@@ -48,6 +86,9 @@ export class SaveManager {
             name: data.name || `Мир (Слот ${i})`,
             date: data.date || '',
             year: data.gameYear || 1,
+            gameYear: data.gameYear || 1,
+            era: data.kingdoms?.[0]?.era,
+            timestamp: data.date || '',
             population: data.humans?.length || 0,
             kingdomsCount: data.kingdoms?.length || 0,
           });
@@ -72,7 +113,7 @@ export class SaveManager {
 
     // Serialize arrays
     const tilesArr = Array.from(world.tiles);
-    const elevationArr = Array.from(world.elevation);
+    const elevationArr = Array.from(world.elevation).map((e) => Math.round(e * 1000) / 1000);
     const biomesArr = Array.from(world.biomesArray);
     const roadsArr = sim.roadSystem ? Array.from(sim.roadSystem.roads) : [];
     const roadWearArr = sim.roadSystem ? Array.from(sim.roadSystem.wear) : [];
@@ -253,7 +294,16 @@ export class SaveManager {
   public static saveToSlot(slot: number, sim: Simulation, name?: string): boolean {
     try {
       const data = SaveManager.serializeWorld(sim, name || `Мир Эпоха ${sim.gameYear}`);
-      localStorage.setItem(SaveManager.getSlotKey(slot), JSON.stringify(data));
+      const storageData = {
+        ...data,
+        isCompressed: true,
+        tiles: SaveManager.packGrid(data.tiles),
+        elevation: SaveManager.packGrid(data.elevation),
+        biomesArray: SaveManager.packGrid(data.biomesArray),
+        roads: data.roads ? SaveManager.packGrid(data.roads) : undefined,
+        roadWear: data.roadWear ? SaveManager.packGrid(data.roadWear) : undefined,
+      };
+      localStorage.setItem(SaveManager.getSlotKey(slot), JSON.stringify(storageData));
       return true;
     } catch (e) {
       console.error('Failed to save to slot:', e);
@@ -281,6 +331,14 @@ export class SaveManager {
   public static deserializeWorld(value: unknown, target: Simulation): boolean {
     SaveManager.lastLoadError = null;
     try {
+      if (value && typeof value === 'object') {
+        const raw = value as Record<string, any>;
+        if (typeof raw.tiles === 'string') raw.tiles = SaveManager.unpackGrid(raw.tiles);
+        if (typeof raw.elevation === 'string') raw.elevation = SaveManager.unpackGrid(raw.elevation);
+        if (typeof raw.biomesArray === 'string') raw.biomesArray = SaveManager.unpackGrid(raw.biomesArray);
+        if (typeof raw.roads === 'string') raw.roads = SaveManager.unpackGrid(raw.roads);
+        if (typeof raw.roadWear === 'string') raw.roadWear = SaveManager.unpackGrid(raw.roadWear);
+      }
       validateSave(value, target.world.width, target.world.height);
       // Detach mutable arrays and records from the caller as well as the running world.
       const data: WorldSaveData = JSON.parse(JSON.stringify(value));

@@ -21,6 +21,19 @@ export class DiplomacyManager {
     return a < b ? `${a}_${b}` : `${b}_${a}`;
   }
 
+  public handleKingdomDestroyed(kingdomId: string): void {
+    for (const war of this.wars.values()) {
+      if (war.status === 'ACTIVE' && (war.kingdomAId === kingdomId || war.kingdomBId === kingdomId)) {
+        war.status = 'PEACE';
+      }
+    }
+    for (const [id, pact] of this.pacts) {
+      if (pact.kingdomAId === kingdomId || pact.kingdomBId === kingdomId) {
+        this.pacts.delete(id);
+      }
+    }
+  }
+
   public getPactsForKingdom(kingdomId: string): DiplomaticPact[] {
     return Array.from(this.pacts.values()).filter((pact) => pact.kingdomAId === kingdomId || pact.kingdomBId === kingdomId);
   }
@@ -224,7 +237,7 @@ export class DiplomacyManager {
     kingdomManager: KingdomManager,
     historyManager: HistoryManager,
     gameYear: number,
-    currentTick: number,
+    currentTick: number = 0,
     allowAlliedIntervention: boolean = true
   ): WarEntity | null {
     const kA = kingdomManager.getKingdom(kingdomAId);
